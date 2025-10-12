@@ -24,7 +24,7 @@ import Image from 'next/image';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { useUser, useFirestore, useCollection, useDoc, useMemoFirebase } from '@/firebase';
 import { collection, query, where, doc, documentId } from 'firebase/firestore';
-import type { Story } from '@/lib/types';
+import type { Story, Device } from '@/lib/types';
 import type { User as MemoraUser } from '@/lib/types';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
