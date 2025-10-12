@@ -8,6 +8,7 @@ import { MainLayout } from './layout/main-layout';
 export function AppWrapper({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const isAuthPage = pathname === '/login' || pathname === '/signup';
+  const isLandingPage = pathname === '/';
 
   if (isAuthPage) {
     return (
@@ -15,6 +16,10 @@ export function AppWrapper({ children }: { children: ReactNode }) {
         {children}
       </main>
     );
+  }
+  
+  if (isLandingPage) {
+      return <>{children}</>;
   }
 
   return <MainLayout>{children}</MainLayout>;

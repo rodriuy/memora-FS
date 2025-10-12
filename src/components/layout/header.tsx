@@ -14,14 +14,13 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '../ui/button';
 import { LogOut, Settings, User } from 'lucide-react';
 import { usePathname, useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { useUser, useAuth } from '@/firebase';
 import { signOut } from 'firebase/auth';
 
 function getPageTitle(pathname: string): string {
-    if (pathname === '/') return 'Dashboard';
+    if (pathname.startsWith('/dashboard')) return 'Dashboard';
     const segments = pathname.split('/').filter(Boolean);
-    if (segments.length === 0) return 'Dashboard';
+    if (segments.length === 0) return 'Welcome';
     
     // Handle dynamic routes like /stories/[id]
     if (segments[0] === 'stories' && segments.length > 1) {

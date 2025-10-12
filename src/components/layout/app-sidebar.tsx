@@ -22,9 +22,12 @@ import {
   Settings,
   LogOut,
 } from 'lucide-react';
+import { useAuth } from '@/firebase';
+import { signOut } from 'firebase/auth';
+import { useRouter } from 'next/navigation';
 
 const navItems = [
-  { href: '/', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/stories', label: 'Stories', icon: BookText },
   { href: '/devices', label: 'Devices', icon: RadioTower },
   { href: '/family', label: 'Family', icon: Users },
@@ -33,9 +36,16 @@ const navItems = [
 
 export function AppSidebar() {
   const pathname = usePathname();
+  const auth = useAuth();
+  const router = useRouter();
 
   const isActive = (href: string) => {
     return pathname === href;
+  };
+
+  const handleLogout = async () => {
+    await signOut(auth);
+    router.push('/login');
   };
 
   return (
@@ -75,12 +85,10 @@ export function AppSidebar() {
               </Link>
           </SidebarMenuItem>
           <SidebarMenuItem>
-             <Link href="/login" legacyBehavior passHref>
-                <SidebarMenuButton tooltip="Logout">
-                  <LogOut />
-                  <span>Logout</span>
-                </SidebarMenuButton>
-              </Link>
+              <SidebarMenuButton tooltip="Logout" onClick={handleLogout}>
+                <LogOut />
+                <span>Logout</span>
+              </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
