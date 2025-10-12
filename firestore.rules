@@ -1,139 +1,133 @@
+/**
+ * @fileoverview Firestore Security Rules for Memora App
+ *
+ * Core Philosophy:
+ * This ruleset enforces a role-based access control within families. Users
+ * can only access data associated with their family, with the admin having
+ * greater privileges. User listing is disallowed.
+ *
+ * Data Structure:
+ * - /users/{userId}: Stores individual user profiles.
+ * - /families/{familyId}: Stores family account information.
+ * - /families/{familyId}/stories/{storyId}: Stores stories for each family.
+ * - /families/{familyId}/memoraBoxes/{boxId}: Stores MemoraBox device information.
+ * - /donatedStories/{donatedStoryId}: Stores stories donated to Estudia Memora.
+ *
+ * Key Security Decisions:
+ * - Users can only read and write their own user document.
+ * - Stories are scoped to families; only family members can access them.
+ * - MemoraBoxes are also scoped to families.
+ * - Listing all users is not permitted.
+ * - Donated Stories are publicly readable, but only admins can create, update, or delete them (This will need to be revisited).
+ *
+ * Denormalization for Authorization:
+ *  - The `User` entity has a `familyId` field that is used to associate a user with a family.
+ *  - The `Story` and `MemoraBox` entities also have a `familyId` field for scoping to a family.
+ */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Protects user profile data. Only the authenticated user can read and write their own profile.
+     * @description Checks if the request is authenticated.
+     */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /**
+     * @description Checks if the authenticated user's UID matches the provided userId.
+     * @param {string} userId - The user ID to compare against.
+     */
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    /**
+     * @description Checks if the authenticated user's UID matches the provided userId and the document exists.
+     * @param {string} userId - The user ID to compare against.
+     */
+    function isExistingOwner(userId) {
+      return isOwner(userId) && resource != null;
+    }
+
+    /**
+     * @description Grants the owner full access to their own user document.
      * @path /users/{userId}
-     * @allow (create) User with UID 'user_abc' can create their profile if request.auth.uid == 'user_abc'.
-     * @allow (get, update, delete) User with UID 'user_abc' can read, update, and delete their profile if request.auth.uid == 'user_abc'.
-     * @deny (create) User with UID 'user_abc' cannot create a profile with a mismatched ID.
-     * @deny (get, update, delete) User with UID 'user_xyz' cannot read, update, or delete user 'user_abc's profile.
-     * @principle Enforces document ownership for writes and reads.
+     * @allow (create) - User 'l82hyuRvHTeI8wyNxYzbfMofIiE2' can create their own user document.
+     * @allow (get) - User 'l82hyuRvHTeI8wyNxYzbfMofIiE2' can read their own user document.
+     * @allow (update) - User 'l82hyuRvHTeI8wyNxYzbfMofIiE2' can update their own user document.
+     * @allow (delete) - User 'l82hyuRvHTeI8wyNxYzbfMofIiE2' can delete their own user document.
+     * @deny (create) - User 'attackerId' cannot create a document with userId 'l82hyuRvHTeI8wyNxYzbfMofIiE2'.
+     * @principle Enforces document ownership for writes.
      */
     match /users/{userId} {
-      function isSignedIn() {
-        return request.auth != null;
-      }
-
-      function isOwner(userId) {
-        return request.auth.uid == userId;
-      }
-
-      function isExistingOwner(userId) {
-        return isOwner(userId) && resource != null;
-      }
-
-      allow get: if isSignedIn() && isOwner(userId);
+      allow get: if isOwner(userId);
       allow list: if false;
-      allow create: if isSignedIn() && isOwner(userId);
-      allow update: if isSignedIn() && isOwner(userId);
-      allow delete: if isSignedIn() && isOwner(userId);
+      allow create: if isOwner(userId) && request.resource.data.id == userId;
+      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
+      allow delete: if isExistingOwner(userId);
     }
 
     /**
-     * @description Protects family account data. Only family members can read family details.
+     * @description Grants family members access to family documents.  The family admin can manage the family.
      * @path /families/{familyId}
-     * @allow (get, list) Authenticated user can read and list family details.
-     * @allow (create) Authenticated user can create a new family if they are the admin.
-     * @allow (update, delete) Only the family admin can update or delete the family.
-     * @deny Non-authenticated user cannot access family details.
-     * @deny Non-family members cannot access family details.
-     * @principle Enforces family-based access control.
+     * @allow (get) - User who is a member of the family can read family document.
+     * @deny (create) - Only the backend can create family documents.
+     * @principle Role-based access control within families.
      */
     match /families/{familyId} {
-        function isSignedIn() {
-            return request.auth != null;
-        }
-
-        function isAdmin(familyId) {
-            return get(/databases/$(database)/documents/families/$(familyId)).data.adminId == request.auth.uid;
-        }
-
-        function isFamilyMember(familyId) {
-            return request.auth.uid in get(/databases/$(database)/documents/families/$(familyId)).data.memberIds;
-        }
-
-        allow get: if isSignedIn() && isFamilyMember(familyId);
-        allow list: if false;
-        allow create: if isSignedIn(); // Relaxed admin check for prototyping
-        allow update: if isSignedIn() && isAdmin(familyId);
-        allow delete: if isSignedIn() && isAdmin(familyId);
+      allow get: if isSignedIn() && request.auth.uid in resource.data.memberIds;
+      allow list: if false;
+      allow create: if false;
+      allow update: if isSignedIn() && request.auth.uid == resource.data.adminId;
+      allow delete: if false;
     }
 
     /**
-     * @description Protects stories associated with a family. Only family members can read and write stories.
+     * @description Grants family members access to stories within their family.
      * @path /families/{familyId}/stories/{storyId}
-     * @allow (get, list) Authenticated user can read and list family stories if they are a family member.
-     * @allow (create) Authenticated user can create a new story if they are a family member and the familyId matches.
-     * @allow (update, delete) Only family members can update or delete a family story.
-     * @deny Non-authenticated user cannot access family stories.
-     * @deny Non-family members cannot access family stories.
-     * @principle Enforces family-based access control for stories.
+     * @allow (list) - User who is a member of the family can list stories.
+     * @allow (create) - User who is a member of the family can create a story.
+     * @deny (update) - Non-family member cannot update a story.
+     * @principle Family-scoped data access.
      */
     match /families/{familyId}/stories/{storyId} {
-      function isSignedIn() {
-          return request.auth != null;
-      }
-
-      function isFamilyMember(familyId) {
-          return request.auth.uid in get(/databases/$(database)/documents/families/$(familyId)).data.memberIds;
-      }
-
-      function isExistingFamilyMember(familyId) {
-        return isFamilyMember(familyId) && resource != null;
-      }
-
-      allow get: if isSignedIn() && isFamilyMember(familyId);
-      allow list: if false;
-      allow create: if isSignedIn() && isFamilyMember(familyId); // Removed familyId check for prototyping
-      allow update: if isSignedIn() && isFamilyMember(familyId);
-      allow delete: if isSignedIn() && isFamilyMember(familyId);
+      allow get: if isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/families/$(familyId)).data.memberIds;
+      allow list: if isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/families/$(familyId)).data.memberIds;
+      allow create: if isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/families/$(familyId)).data.memberIds && request.resource.data.familyId == familyId;
+      allow update: if isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/families/$(familyId)).data.memberIds && request.resource.data.familyId == familyId && resource != null;
+      allow delete: if isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/families/$(familyId)).data.memberIds && resource != null;
     }
 
     /**
-     * @description Protects Memora Box device information. Only family members can read and write box details.
+     * @description Grants family members access to MemoraBoxes within their family.
      * @path /families/{familyId}/memoraBoxes/{boxId}
-     * @allow (get, list) Authenticated user can read and list Memora Box details if they are a family member.
-     * @allow (create) Authenticated user can create a new Memora Box if they are a family member and the familyId matches.
-     * @allow (update, delete) Only family members can update or delete a Memora Box.
-     * @deny Non-authenticated user cannot access Memora Box details.
-     * @deny Non-family members cannot access Memora Box details.
-     * @principle Enforces family-based access control for Memora Boxes.
+     * @allow (get) - User who is a member of the family can get memoraBoxes.
+     * @deny (create) - Non-family member cannot create a memoraBox.
+     * @principle Family-scoped data access.
      */
     match /families/{familyId}/memoraBoxes/{boxId} {
-        function isSignedIn() {
-            return request.auth != null;
-        }
-
-        function isFamilyMember(familyId) {
-            return request.auth.uid in get(/databases/$(database)/documents/families/$(familyId)).data.memberIds;
-        }
-
-        function isExistingFamilyMember(familyId) {
-          return isFamilyMember(familyId) && resource != null;
-        }
-
-        allow get: if isSignedIn() && isFamilyMember(familyId);
-        allow list: if false;
-        allow create: if isSignedIn() && isFamilyMember(familyId); // Removed familyId check for prototyping
-        allow update: if isSignedIn() && isFamilyMember(familyId);
-        allow delete: if isSignedIn() && isFamilyMember(familyId);
+      allow get: if isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/families/$(familyId)).data.memberIds;
+      allow list: if isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/families/$(familyId)).data.memberIds;
+      allow create: if isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/families/$(familyId)).data.memberIds && request.resource.data.familyId == familyId;
+      allow update: if isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/families/$(familyId)).data.memberIds && request.resource.data.familyId == familyId && resource != null;
+      allow delete: if isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/families/$(familyId)).data.memberIds && resource != null;
     }
 
     /**
-     * @description Provides public read access to donated, anonymized stories. Write access is restricted.
+     * @description Grants public read access to donated stories but restricts write access.
      * @path /donatedStories/{donatedStoryId}
-     * @allow (get, list) Any user can read and list donated stories.
-     * @deny (create, update, delete) Only authorized services can create, update, or delete donated stories.
-     * @principle Allows public read access to donated stories while restricting write access.
+     * @allow (get) - Any user can read donated stories.
+     * @deny (create) - Only the backend can create donated stories.
+     * @principle Public read, restricted write access.
      */
     match /donatedStories/{donatedStoryId} {
       allow get: if true;
       allow list: if true;
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false; // TODO: Add service account authentication for write access.
+      allow create: if false; // TODO: Add admin role check.
+      allow update: if false; // TODO: Add admin role check.
+      allow delete: if false; // TODO: Add admin role check.
     }
   }
 }
