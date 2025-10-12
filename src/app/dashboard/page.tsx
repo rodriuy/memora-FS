@@ -23,7 +23,7 @@ import { Badge } from '@/components/ui/badge';
 import Image from 'next/image';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { useUser, useFirestore, useCollection, useDoc, useMemoFirebase } from '@/firebase';
-import { collection, query, where, doc } from 'firebase/firestore';
+import { collection, query, where, doc, documentId } from 'firebase/firestore';
 import type { Story, Device } from '@/lib/types';
 import type { User as MemoraUser } from '@/lib/types';
 import { useRouter } from 'next/navigation';
@@ -42,11 +42,19 @@ export default function Dashboard() {
   const devicesQuery = useMemoFirebase(() => familyId ? query(collection(firestore, 'memoraBoxes'), where('familyId', '==', familyId)) : null, [firestore, familyId]);
   const { data: devices, isLoading: devicesLoading } = useCollection<Device>(devicesQuery);
 
-  const familyMembersQuery = useMemoFirebase(() => familyId ? query(collection(firestore, 'users'), where('familyId', '==', familyId)) : null, [firestore, familyId]);
-  const { data: familyMembers, isLoading: familyMembersLoading } = useCollection<MemoraUser>(familyMembersQuery);
-
   const familyDocRef = useMemoFirebase(() => familyId ? doc(firestore, 'families', familyId) : null, [firestore, familyId]);
   const { data: familyData } = useDoc(familyDocRef);
+  
+  const memberIds = familyData?.memberIds || [];
+  
+  const familyMembersQuery = useMemoFirebase(
+    () =>
+      firestore && memberIds.length > 0
+        ? query(collection(firestore, 'users'), where(documentId(), 'in', memberIds))
+        : null,
+    [firestore, memberIds]
+  );
+  const { data: familyMembers, isLoading: familyMembersLoading } = useCollection<MemoraUser>(familyMembersQuery);
 
   const recentStories = stories ? stories.slice(0, 3) : [];
   const storyImage = (id: string) => PlaceHolderImages.find(p => p.id === id)?.imageUrl || '';
@@ -59,7 +67,7 @@ export default function Dashboard() {
     }
   }, [user, isUserLoading, router]);
 
-  if (isUserLoading) {
+  if (isUserLoading || !userData) {
       return (
         <div className="flex justify-center items-center h-[calc(100vh-4rem)]">
           <p>Loading your dashboard...</p>
