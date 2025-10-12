@@ -13,16 +13,23 @@ import {
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import React, { Suspense } from 'react';
 import { useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { useAuth, useFirestore } from '@/firebase';
+import { auth, db } from "@/firebase/client";
 import { createUserWithEmailAndPassword, updateProfile, GoogleAuthProvider, signInWithPopup, type User as FirebaseUser } from 'firebase/auth';
-import { doc, getDoc, collection, serverTimestamp, writeBatch, arrayUnion } from 'firebase/firestore';
+import {
+  collection,
+  doc,
+  setDoc,
+  getDoc,
+  updateDoc,
+  serverTimestamp,
+  arrayUnion,
+} from "firebase/firestore";
 
 
-export default function SignupPage() {
-  const auth = useAuth();
-  const firestore = useFirestore();
+function SignupForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
@@ -34,55 +41,65 @@ export default function SignupPage() {
   
   const familyIdFromInvite = searchParams.get('familyId');
 
-  const setupUserAndFamilyIfNeeded = async (user: FirebaseUser) => {
-    if (!firestore) return;
-    const userRef = doc(firestore, 'users', user.uid);
-    const userSnap = await getDoc(userRef);
+  async function setupUserAndFamilyIfNeeded(authUser: FirebaseUser, displayName: string, email: string, familyName: string, familyId: string | null) {
+    if (!authUser || !authUser.uid) throw new Error("authUser missing");
 
-    if (userSnap.exists()) {
-      console.log('User document already exists, skipping setup.');
-      return;
-    }
+    const uid = authUser.uid;
+    const userRef = doc(db, "users", uid);
 
-    const batch = writeBatch(firestore);
-
-    let finalFamilyId = familyIdFromInvite;
-
-    // If user is NOT joining via invite link, create a new family
-    if (!familyIdFromInvite) {
-        const familyRef = doc(collection(firestore, 'families'));
-        finalFamilyId = familyRef.id;
-        const finalFamilyName = familyName.trim() || `${user.displayName || 'Mi'}'s Familia`;
-        
-        const familyData = {
-          adminId: user.uid,
-          familyName: finalFamilyName,
-          memberIds: [user.uid],
-          subscriptionTier: 'free',
-          createdAt: serverTimestamp(),
-        };
-        batch.set(familyRef, familyData);
-    } else {
-        // If user IS joining via invite link, add them to existing family
-        const familyRef = doc(firestore, 'families', familyIdFromInvite);
-        batch.update(familyRef, {
-            memberIds: arrayUnion(user.uid)
+    try {
+      const existing = await getDoc(userRef);
+      if (!existing.exists()) {
+        await setDoc(userRef, {
+          id: uid,
+          name: displayName || null,
+          email: email || null,
+          familyId: null,
+          createdAt: serverTimestamp()
         });
-    }
+      } else {
+        await updateDoc(userRef, {
+          name: displayName || existing.data().name || null,
+          email: email || existing.data().email || null,
+        }).catch(() => {});
+      }
 
-    const userData = {
-        userId: user.uid,
-        email: user.email,
-        displayName: user.displayName,
-        familyId: finalFamilyId,
-        avatarId: `user-${Math.floor(Math.random() * 4) + 1}`,
-        avatarUrl: user.photoURL || '',
-        bio: '',
-    };
-    batch.set(userRef, userData);
-    
-    await batch.commit();
-  };
+      let finalFamilyId = familyId;
+      if (!finalFamilyId) {
+        const newFamilyRef = doc(collection(db, "families"));
+        finalFamilyId = newFamilyRef.id;
+        const finalFamilyName = familyName.trim() || `${displayName || 'Mi'}'s Familia`;
+
+        await setDoc(newFamilyRef, {
+          id: finalFamilyId,
+          name: finalFamilyName,
+          adminId: uid,
+          memberIds: [uid],
+          createdAt: serverTimestamp()
+        });
+        await updateDoc(userRef, { familyId: finalFamilyId }).catch(() => {});
+
+      } else {
+        const familyRef = doc(db, "families", finalFamilyId);
+        const familyDoc = await getDoc(familyRef);
+        if (familyDoc.exists()) {
+            await updateDoc(familyRef, {
+                memberIds: arrayUnion(uid)
+            }).catch(() => {});
+        }
+        await updateDoc(userRef, { familyId: finalFamilyId }).catch(() => {});
+      }
+
+      return { ok: true };
+    } catch (err: any) {
+      console.error("signup/setupUserAndFamily error:", {
+        message: err?.message,
+        code: err?.code,
+        stack: err?.stack,
+      });
+      throw err;
+    }
+  }
 
 
   const handleSignup = async () => {
@@ -94,20 +111,12 @@ export default function SignupPage() {
         });
         return;
     }
-    if (!auth) return;
 
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      
       await updateProfile(userCredential.user, { displayName });
 
-      // We need to reload user to get the displayName updated for setup
-      await userCredential.user.reload();
-      const updatedUser = auth.currentUser;
-
-      if (updatedUser) {
-        await setupUserAndFamilyIfNeeded(updatedUser);
-      }
+      await setupUserAndFamilyIfNeeded(userCredential.user, displayName, email, familyName, familyIdFromInvite);
 
       toast({
         title: "Cuenta Creada",
@@ -134,13 +143,12 @@ export default function SignupPage() {
   };
 
   const handleGoogleSignup = async () => {
-    if (!auth) return;
     const provider = new GoogleAuthProvider();
     try {
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
 
-      await setupUserAndFamilyIfNeeded(user);
+      await setupUserAndFamilyIfNeeded(user, user.displayName || '', user.email || '', familyName, familyIdFromInvite);
       
       toast({
         title: "Sesión Iniciada",
@@ -225,5 +233,13 @@ export default function SignupPage() {
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+export default function SignupPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <SignupForm />
+    </Suspense>
   );
 }
