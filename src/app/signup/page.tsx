@@ -16,8 +16,8 @@ import { Label } from '@/components/ui/label';
 import { useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth, useFirestore, addDocumentNonBlocking, setDocumentNonBlocking } from '@/firebase';
-import { createUserWithEmailAndPassword, updateProfile, GoogleAuthProvider, signInWithPopup, User as FirebaseUser } from 'firebase/auth';
-import { doc, getDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { createUserWithEmailAndPassword, updateProfile, GoogleAuthProvider, signInWithPopup, type User as FirebaseUser } from 'firebase/auth';
+import { doc, getDoc, collection, serverTimestamp, writeBatch } from 'firebase/firestore';
 
 
 export default function SignupPage() {
@@ -30,19 +30,20 @@ export default function SignupPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
-  // This function is now responsible for creating docs if they don't exist
-  // It's designed to be called safely on login or after signup.
   const setupUserAndFamilyIfNeeded = async (user: FirebaseUser) => {
     const userRef = doc(firestore, 'users', user.uid);
     const userSnap = await getDoc(userRef);
 
-    // If user document already exists, do nothing.
     if (userSnap.exists()) {
+      console.log('User document already exists, skipping setup.');
       return;
     }
 
-    // Create family document first. This now returns a promise.
-    const familiesRef = collection(firestore, 'families');
+    // Use a batch write to create family and user docs atomically
+    const batch = writeBatch(firestore);
+
+    // 1. Define the family document reference and data
+    const familyRef = doc(collection(firestore, 'families'));
     const familyData = {
       adminId: user.uid,
       familyName: `${user.displayName || 'My'}'s Family`,
@@ -50,23 +51,22 @@ export default function SignupPage() {
       subscriptionTier: 'free',
       createdAt: serverTimestamp(),
     };
-    
-    // Use the non-blocking addDoc which handles contextual errors.
-    const familyDocPromise = addDocumentNonBlocking(familiesRef, familyData);
+    batch.set(familyRef, familyData);
 
-    familyDocPromise.then(familyDocRef => {
-        if (familyDocRef) {
-            // Then create the user document with the new familyId
-            const userData = {
-                userId: user.uid,
-                email: user.email,
-                displayName: user.displayName,
-                familyId: familyDocRef.id,
-            };
-            setDocumentNonBlocking(userRef, userData, { merge: false });
-        }
-        // Errors are caught and emitted inside addDocumentNonBlocking and setDocumentNonBlocking
-    });
+    // 2. Define the user document data, now with the familyId
+    const userData = {
+        userId: user.uid,
+        email: user.email,
+        displayName: user.displayName,
+        familyId: familyRef.id,
+        avatarId: `user-${Math.floor(Math.random() * 4) + 1}`,
+    };
+    batch.set(userRef, userData);
+    
+    // 3. Commit the batch
+    // This is an await because it's part of the critical signup flow.
+    // Errors here should be caught by the calling function.
+    await batch.commit();
   };
 
 
@@ -81,29 +81,24 @@ export default function SignupPage() {
     }
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      // Set the display name right after creation
+      
       await updateProfile(userCredential.user, { displayName });
 
-      // After setting displayName, call the setup function
-      // It's important to use the user object from the credential
       await setupUserAndFamilyIfNeeded(userCredential.user);
 
       toast({
         title: "Account Created",
         description: "Welcome to Memora! Redirecting you to the dashboard...",
       });
-      // Redirect to dashboard where useUser hook will have the fresh user
+      
       router.push('/dashboard');
     } catch (error: any) {
-      // General auth errors (e.g., email already in use) are still handled here.
-      // Firestore permission errors will be handled by the global error listener.
-      if (error.name !== 'FirebaseError') { // Avoid showing toasts for our custom errors
-        toast({
-            variant: 'destructive',
-            title: 'Signup Failed',
-            description: error.message,
-        });
-      }
+      console.error("Signup Error:", error);
+      toast({
+          variant: 'destructive',
+          title: 'Signup Failed',
+          description: error.message,
+      });
     }
   };
 
@@ -113,8 +108,6 @@ export default function SignupPage() {
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
 
-      // The setup function will check if the user is new and create docs if needed.
-      // This makes it safe for both new signups and returning users.
       await setupUserAndFamilyIfNeeded(user);
       
       toast({
@@ -123,13 +116,12 @@ export default function SignupPage() {
       });
       router.push('/dashboard');
     } catch (error: any) {
-       if (error.name !== 'FirebaseError') {
-          toast({
-            variant: 'destructive',
-            title: 'Google Sign-In Failed',
-            description: error.message,
-          });
-       }
+       console.error("Google Signup Error:", error);
+       toast({
+         variant: 'destructive',
+         title: 'Google Sign-In Failed',
+         description: error.message,
+       });
     }
   };
 
