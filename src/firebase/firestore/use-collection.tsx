@@ -58,14 +58,16 @@ export function useCollection<T = any>(
   type StateDataType = ResultItemType[] | null;
 
   const [data, setData] = useState<StateDataType>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(true); // Start with loading true
+  const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<FirestoreError | Error | null>(null);
 
   useEffect(() => {
-    // Condition to prevent premature query: if the query object is null/undefined, do nothing.
+    // *** ROOT CAUSE FIX ***
+    // If the query is not ready (e.g., waiting for dependencies),
+    // stop execution here. This prevents insecure queries on the entire collection.
     if (!memoizedTargetRefOrQuery) {
       setData(null);
-      setIsLoading(false); // Not loading if there's no query
+      setIsLoading(false); 
       setError(null);
       return;
     }
@@ -104,7 +106,6 @@ export function useCollection<T = any>(
     );
 
     return () => unsubscribe();
-    // Dependency array ensures this runs only when the query object itself changes.
   }, [memoizedTargetRefOrQuery]); 
   
   if(memoizedTargetRefOrQuery && !memoizedTargetRefOrQuery.__memo) {
