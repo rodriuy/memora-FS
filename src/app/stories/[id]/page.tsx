@@ -1,7 +1,7 @@
 
 'use client';
 
-import { notFound } from 'next/navigation';
+import { notFound, useRouter } from 'next/navigation';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import Image from 'next/image';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -19,22 +19,41 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogClose,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { anonymizeStory } from '@/ai/flows/anonymize-story-for-donation';
 import { generateAnimatedPhoto } from '@/ai/flows/generate-animated-photo';
-import React, { useEffect, useState } from 'react';
-import { useUser, useFirestore, useDoc, useMemoFirebase, updateDocumentNonBlocking } from '@/firebase';
-import { doc } from 'firebase/firestore';
+import React, { useEffect, useState, useTransition } from 'react';
+import { useUser, useFirestore, useDoc, useMemoFirebase, updateDocumentNonBlocking, addDocumentNonBlocking } from '@/firebase';
+import { doc, collection, serverTimestamp } from 'firebase/firestore';
 import type { Story } from '@/lib/types';
+import Link from 'next/link';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+
+
+// Helper function to convert image URL to data URI
+async function toDataUri(url: string) {
+  const response = await fetch(url);
+  const blob = await response.blob();
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
 
 
 export default function StoryDetailPage({ params }: { params: { id: string } }) {
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
+  const router = useRouter();
   const [familyId, setFamilyId] = useState<string | null>(null);
+
+  const [isPending, startTransition] = useTransition();
 
   const userDocRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [firestore, user]);
   const { data: userData } = useDoc(userDocRef);
@@ -55,6 +74,7 @@ export default function StoryDetailPage({ params }: { params: { id: string } }) 
   const [isDonated, setIsDonated] = React.useState(story?.isDonated || false);
   const [isDonating, setIsDonating] = React.useState(false);
   const [isAnimating, setIsAnimating] = React.useState(false);
+  const [animatedVideo, setAnimatedVideo] = useState<string | null>(null);
 
   useEffect(() => {
     if (story) {
@@ -70,19 +90,31 @@ export default function StoryDetailPage({ params }: { params: { id: string } }) 
     notFound();
   }
 
-  const storyImage = PlaceHolderImages.find((p) => p.id === story.imageId)?.imageUrl || '';
-  // This is a placeholder, in a real app you'd fetch narrator details
+  const storyImage = PlaceHolderImages.find((p) => p.id === story.imageId)?.imageUrl || 'https://picsum.photos/seed/placeholder/400/300';
   const narratorAvatar = PlaceHolderImages.find((p) => p.id === 'user-1')?.imageUrl || '';
 
   const handleDonationToggle = async (checked: boolean) => {
     if (checked) {
         setIsDonating(true);
         try {
-            // The logic for calling the cloud function will be added later
-            // For now, we just update the document
-            updateDocumentNonBlocking(storyDocRef!, { isDonated: true });
+            if (!storyDocRef) throw new Error("Story reference not found");
 
-            setIsDonated(true);
+            const { anonymizedText } = await anonymizeStory({ storyText: story.transcription });
+
+            const donatedStoriesRef = collection(firestore, 'donatedStories');
+            await addDocumentNonBlocking(donatedStoriesRef, {
+                storyId: story.id,
+                anonTranscription: anonymizedText,
+                originalFamilyId: familyId,
+                donatedAt: serverTimestamp(),
+            });
+
+            updateDocumentNonBlocking(storyDocRef, { isDonated: true });
+            
+            startTransition(() => {
+                setIsDonated(true);
+            })
+
             toast({
                 title: 'Story Donated',
                 description: 'Thank you for contributing to Estudia Memora.',
@@ -92,7 +124,7 @@ export default function StoryDetailPage({ params }: { params: { id: string } }) 
             toast({
                 variant: 'destructive',
                 title: 'Donation Failed',
-                description: 'Could not update the story for donation.',
+                description: 'Could not anonymize and donate the story.',
             });
         } finally {
             setIsDonating(false);
@@ -102,35 +134,36 @@ export default function StoryDetailPage({ params }: { params: { id: string } }) 
 
   const handleAnimatePhoto = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const formData = new FormData(event.currentTarget);
-    const prompt = formData.get('prompt') as string;
-    
     if (!isPremium) {
         toast({ variant: 'destructive', title: 'Premium Feature', description: 'Please upgrade to animate photos.'});
         return;
     }
-
+    const formData = new FormData(event.currentTarget);
+    const prompt = formData.get('prompt') as string;
+    
     setIsAnimating(true);
+    setAnimatedVideo(null);
+
     try {
-        // The logic for calling the HTTP function will be added later
-        // In a real app, you'd convert the image URL to a data URI
-        const mockPhotoDataUri = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgICAgMCAgIDAwMDBAYEBAQEBAgGBgUGCQgKCgkICQkKDA8MCgsOCwkJDRENDg8QEBEQCgwSExIQEw8QEBD/2wBDAQMDAwQDBAgEBAgQCwkLEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBD/wAARCAAFAAUDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAn/xAAZEAADAQEBAAAAAAAAAAAAAAAAAQIDBQT/xAAVAQEBAAAAAAAAAAAAAAAAAAAAAf/EABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAMAwEAAhEDEQA/AIbFslqbvYVDK4M2kXJ3p6gCUf//Z';
-        const result = await generateAnimatedPhoto({ photoDataUri: mockPhotoDataUri, animationPrompt: prompt });
-        console.log("Animated photo URI:", result.animatedPhotoDataUri);
+        const photoDataUri = await toDataUri(storyImage);
+
+        const result = await generateAnimatedPhoto({ photoDataUri, animationPrompt: prompt });
+        
+        setAnimatedVideo(result.animatedPhotoDataUri);
+        
         toast({
             title: 'Photo Animated!',
-            description: 'Your animated photo is ready to view.',
+            description: 'Your animated video has been generated below.',
         });
-    } catch (error) {
+    } catch (error: any) {
         console.error("Animation failed:", error);
         toast({
             variant: 'destructive',
             title: 'Animation Failed',
-            description: 'Could not generate animated photo.',
+            description: error.message || 'Could not generate animated photo.',
         });
     } finally {
         setIsAnimating(false);
-        // Here you would typically close the dialog
     }
   };
 
@@ -151,7 +184,9 @@ export default function StoryDetailPage({ params }: { params: { id: string } }) 
                     Narrated by {story.narrator}
                   </CardDescription>
                 </div>
-                <Button variant="outline" size="icon"><Edit className="h-4 w-4"/></Button>
+                <Link href={`/stories/${story.id}/edit`}>
+                    <Button variant="outline" size="icon"><Edit className="h-4 w-4"/></Button>
+                </Link>
               </div>
             </CardHeader>
             <CardContent>
@@ -178,17 +213,25 @@ export default function StoryDetailPage({ params }: { params: { id: string } }) 
                             Describe the animation you want to see. This is a premium feature.
                         </DialogDescription>
                     </DialogHeader>
-                    <form onSubmit={handleAnimatePhoto}>
-                        <div className="grid gap-4 py-4">
-                            <div className="grid grid-cols-4 items-center gap-4">
-                                <Label htmlFor="prompt" className="text-right">Prompt</Label>
-                                <Input id="prompt" name="prompt" placeholder="e.g., a gentle smile and a nod" className="col-span-3" />
-                            </div>
+                    {animatedVideo ? (
+                        <div className='py-4'>
+                            <video src={animatedVideo} controls autoPlay loop className="w-full rounded-md" />
+                             <Button onClick={() => setAnimatedVideo(null)} className="w-full mt-4">Create another</Button>
                         </div>
-                        <DialogFooter>
-                            <Button type="submit" disabled={isAnimating || !isPremium}>{isAnimating ? "Animating..." : "Generate Animation"}</Button>
-                        </DialogFooter>
-                    </form>
+                    ) : (
+                        <form onSubmit={handleAnimatePhoto}>
+                            <div className="grid gap-4 py-4">
+                                <div className="grid grid-cols-4 items-center gap-4">
+                                    <Label htmlFor="prompt" className="text-right">Prompt</Label>
+                                    <Input id="prompt" name="prompt" placeholder="e.g., a gentle smile and a nod" className="col-span-3" />
+                                </div>
+                            </div>
+                            <DialogFooter>
+                                <DialogClose asChild><Button variant="ghost">Cancel</Button></DialogClose>
+                                <Button type="submit" disabled={isAnimating || !isPremium}>{isAnimating ? "Animating..." : "Generate Animation"}</Button>
+                            </DialogFooter>
+                        </form>
+                    )}
                 </DialogContent>
               </Dialog>
               {!isPremium && <p className="text-xs text-center text-muted-foreground mt-2">Upgrade to Premium to use this feature.</p>}
@@ -209,7 +252,7 @@ export default function StoryDetailPage({ params }: { params: { id: string } }) 
                         <span>Donated</span>
                     </div>
                 ) : (
-                    <Switch id="donation-switch" onCheckedChange={handleDonationToggle} disabled={isDonating}/>
+                    <Switch id="donation-switch" onCheckedChange={handleDonationToggle} disabled={isDonating || isPending}/>
                 )}
               </div>
               <p className="text-xs text-muted-foreground mt-2">

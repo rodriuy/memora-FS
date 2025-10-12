@@ -7,15 +7,19 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Gem, RadioTower } from "lucide-react";
-import { useUser, useFirestore, useCollection, useDoc, useMemoFirebase } from '@/firebase';
-import { collection, query, where, doc } from 'firebase/firestore';
+import { useUser, useFirestore, useCollection, useDoc, useMemoFirebase, updateDocumentNonBlocking } from '@/firebase';
+import { collection, query, where, doc, getDocs } from 'firebase/firestore';
 import type { Device } from '@/lib/types';
 import { useState, useEffect } from 'react';
+import { useToast } from "@/hooks/use-toast";
 
 export default function DevicesPage() {
     const { user } = useUser();
+    const { toast } = useToast();
     const firestore = useFirestore();
     const [familyId, setFamilyId] = useState<string | null>(null);
+    const [pairingCode, setPairingCode] = useState('');
+    const [isPairing, setIsPairing] = useState(false);
 
     const userDocRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [firestore, user]);
     const { data: userData } = useDoc(userDocRef);
@@ -32,6 +36,44 @@ export default function DevicesPage() {
 
     const devicesQuery = useMemoFirebase(() => familyId ? query(collection(firestore, 'memoraBoxes'), where('familyId', '==', familyId)) : null, [firestore, familyId]);
     const { data: devices, isLoading: devicesLoading } = useCollection<Device>(devicesQuery);
+
+    const handlePairDevice = async () => {
+        if (!pairingCode || !familyId) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Please enter a pairing code.' });
+            return;
+        }
+
+        setIsPairing(true);
+        try {
+            const boxesRef = collection(firestore, 'memoraBoxes');
+            const q = query(boxesRef, where('pairingCode', '==', pairingCode), where('status', '==', 'pending_pairing'));
+            const querySnapshot = await getDocs(q);
+
+            if (querySnapshot.empty) {
+                toast({ variant: 'destructive', title: 'Pairing Failed', description: 'Invalid or already used pairing code.' });
+                setIsPairing(false);
+                return;
+            }
+
+            const boxDoc = querySnapshot.docs[0];
+            const boxDocRef = doc(firestore, 'memoraBoxes', boxDoc.id);
+
+            updateDocumentNonBlocking(boxDocRef, {
+                familyId: familyId,
+                status: 'active'
+            });
+
+            toast({ title: 'Device Paired!', description: `Your Memora Box is now linked to ${familyData?.familyName}.` });
+            setPairingCode('');
+
+        } catch (error) {
+            console.error("Pairing error:", error);
+            toast({ variant: 'destructive', title: 'Pairing Failed', description: 'An error occurred. Please try again.' });
+        } finally {
+            setIsPairing(false);
+        }
+    };
+
 
     return (
         <div className="p-4 md:p-8 grid gap-8 md:grid-cols-2">
@@ -85,7 +127,9 @@ export default function DevicesPage() {
                         <Input
                             placeholder="_ _ _ - _ _ _"
                             className="text-center text-2xl font-mono tracking-widest h-16"
-                            disabled={!isPremium}
+                            value={pairingCode}
+                            onChange={(e) => setPairingCode(e.target.value.replace(/\s/g, ''))}
+                            disabled={!isPremium || isPairing}
                         />
                          {!isPremium && (
                             <div className="mt-4 text-center text-sm text-amber-400/80 p-3 rounded-md bg-amber-400/10 border border-amber-400/20 flex items-center gap-2">
@@ -98,8 +142,8 @@ export default function DevicesPage() {
                         )}
                     </CardContent>
                     <CardFooter>
-                        <Button className="w-full" disabled={!isPremium}>
-                            Pair Device
+                        <Button className="w-full" disabled={!isPremium || isPairing || !pairingCode} onClick={handlePairDevice}>
+                            {isPairing ? 'Pairing...' : 'Pair Device'}
                         </Button>
                     </CardFooter>
                 </Card>

@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Card,
@@ -17,9 +17,10 @@ import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
 import { Upload, Mic, FileAudio, BrainCircuit } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { useUser, useFirestore, useDoc, useMemoFirebase, addDocumentNonBlocking } from '@/firebase';
+import { useUser, useFirestore, useDoc, useMemoFirebase, addDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { collection, doc, serverTimestamp } from 'firebase/firestore';
+import { transcribeAudioStory } from '@/ai/flows/transcribe-audio-story';
 
 type Status = 'idle' | 'uploading' | 'transcribing' | 'complete';
 
@@ -33,6 +34,7 @@ export default function NewStoryPage() {
   const [progress, setProgress] = useState(0);
   const [fileName, setFileName] = useState('');
   const [familyId, setFamilyId] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
 
   const userDocRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [firestore, user]);
   const { data: userData } = useDoc(userDocRef);
@@ -53,56 +55,98 @@ export default function NewStoryPage() {
     setFileName(file.name);
     setStatus('uploading');
 
-    // 1. Create a new story document in Firestore to get an ID
-    const storiesRef = collection(firestore, 'families', familyId, 'stories');
-    const newStoryDoc = await addDocumentNonBlocking(storiesRef, {
-        title: 'New Story', // Placeholder title
-        narrator: 'Unknown',
-        transcription: '',
-        status: 'uploading',
-        isDonated: false,
-        audioUrl: '',
-        createdAt: serverTimestamp()
-    });
-    const storyId = newStoryDoc.id;
+    let storyId: string;
 
-    // 2. Upload the file to Firebase Storage
-    const storage = getStorage();
-    const storagePath = `audio/${familyId}/${storyId}/${file.name}`;
-    const storageRef = ref(storage, storagePath);
-    const uploadTask = uploadBytesResumable(storageRef, file);
+    try {
+        // 1. Create a new story document in Firestore to get an ID
+        const storiesRef = collection(firestore, 'families', familyId, 'stories');
+        const newStoryDoc = await addDocumentNonBlocking(storiesRef, {
+            title: 'New Story', // Placeholder title
+            narrator: 'Unknown',
+            transcription: '',
+            status: 'uploading',
+            isDonated: false,
+            audioUrl: '',
+            imageId: `story-${Math.floor(Math.random() * 4) + 1}`,
+            createdAt: serverTimestamp()
+        });
+        storyId = newStoryDoc.id;
 
-    // 3. Listen to upload progress
-    uploadTask.on('state_changed',
-      (snapshot) => {
-        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-        setProgress(progress);
-      },
-      (error) => {
-        console.error("Upload failed:", error);
+        // 2. Upload the file to Firebase Storage
+        const storage = getStorage();
+        const storagePath = `audio/${familyId}/${storyId}/${file.name}`;
+        const storageRef = ref(storage, storagePath);
+        const uploadTask = uploadBytesResumable(storageRef, file);
+
+        // 3. Listen to upload progress
+        uploadTask.on('state_changed',
+          (snapshot) => {
+            const currentProgress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+            setProgress(currentProgress);
+          },
+          (error) => {
+            console.error("Upload failed:", error);
+            toast({
+                variant: "destructive",
+                title: "Upload Failed",
+                description: "Could not upload the audio file. Please try again.",
+            });
+            setStatus('idle');
+            // TODO: Delete the Firestore doc here if upload fails
+          },
+          () => {
+            // 4. On successful upload, get URL and start transcription
+            getDownloadURL(uploadTask.snapshot.ref).then(async (downloadURL) => {
+              const storyDocRef = doc(firestore, 'families', familyId, 'stories', storyId);
+              
+              // Update status to transcribing
+              updateDocumentNonBlocking(storyDocRef, { audioUrl: downloadURL, status: 'transcribing' });
+              setStatus('transcribing');
+              toast({
+                title: "Upload Complete!",
+                description: "Your story is now being transcribed by our AI.",
+              });
+
+              // 5. Call Genkit flow for transcription
+              try {
+                const { transcription } = await transcribeAudioStory({ audioUrl: downloadURL });
+                
+                // 6. Update document with transcription and final status
+                updateDocumentNonBlocking(storyDocRef, {
+                    transcription: transcription,
+                    status: 'completed',
+                });
+                
+                setStatus('complete');
+                toast({
+                    title: "Transcription Complete!",
+                    description: "Your story is ready to be edited.",
+                  });
+                router.push(`/stories/${storyId}/edit`);
+
+              } catch (transcriptionError) {
+                 console.error("Transcription failed:", transcriptionError);
+                 updateDocumentNonBlocking(storyDocRef, { status: 'failed' });
+                 toast({
+                    variant: "destructive",
+                    title: "Transcription Failed",
+                    description: "Could not transcribe the audio. Please try again.",
+                });
+                setStatus('idle');
+              }
+            });
+          }
+        );
+
+    } catch (error) {
+        console.error("Story creation failed:", error);
         toast({
             variant: "destructive",
-            title: "Upload Failed",
-            description: "Could not upload the audio file. Please try again.",
+            title: "Error",
+            description: "Could not create the story document. Please try again.",
         });
         setStatus('idle');
-        // Maybe delete the Firestore doc here if upload fails
-      },
-      () => {
-        // 4. On successful upload
-        setStatus('transcribing');
-        getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) => {
-          // The Cloud Function will be triggered by the file upload.
-          // It will update the Firestore document with the audioUrl, transcription, and status.
-          // For now, we'll just navigate to the story page where the user can see the progress.
-          toast({
-            title: "Upload Complete!",
-            description: "Your story is now being transcribed by our AI.",
-          });
-          router.push(`/stories/${storyId}/edit`);
-        });
-      }
-    );
+    }
   };
 
   const renderContent = () => {
@@ -117,7 +161,7 @@ export default function NewStoryPage() {
                 <CardDescription>
                   Supports .mp3, .wav, .m4a
                 </CardDescription>
-                <Input id="file-upload" type="file" className="hidden" onChange={handleFileChange} accept="audio/*" disabled={!familyId}/>
+                <Input id="file-upload" type="file" className="hidden" onChange={handleFileChange} accept="audio/*" disabled={!familyId || isPending}/>
               </Card>
             </label>
             <Card className="h-full flex flex-col items-center justify-center text-center p-8 bg-muted/50 cursor-not-allowed">
@@ -134,13 +178,13 @@ export default function NewStoryPage() {
         return (
           <div className="flex flex-col items-center justify-center text-center p-8">
             <div className="flex items-center text-lg font-semibold mb-4">
-                {status === 'uploading' ? <FileAudio className="h-6 w-6 mr-2" /> : <BrainCircuit className="h-6 w-6 mr-2 text-primary" />}
+                {status === 'uploading' ? <FileAudio className="h-6 w-6 mr-2" /> : <BrainCircuit className="h-6 w-6 mr-2 text-primary animate-pulse" />}
                 {status === 'uploading' ? 'Uploading' : 'Sent for Transcription'}...
             </div>
             <p className="text-muted-foreground mb-4">{fileName}</p>
             <Progress value={progress} className="w-full max-w-md" />
             <p className="text-sm text-primary mt-2">
-                {status === 'uploading' ? 'Uploading your memory...' : 'AI is listening...'}
+                {status === 'uploading' ? `Uploading your memory... ${Math.round(progress)}%` : 'AI is listening... this may take a moment.'}
             </p>
           </div>
         );
