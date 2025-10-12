@@ -15,7 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { useAuth, useFirestore, addDocumentNonBlocking, setDocumentNonBlocking } from '@/firebase';
+import { useAuth, useFirestore } from '@/firebase';
 import { createUserWithEmailAndPassword, updateProfile, GoogleAuthProvider, signInWithPopup, type User as FirebaseUser } from 'firebase/auth';
 import { doc, getDoc, collection, serverTimestamp, writeBatch } from 'firebase/firestore';
 
@@ -93,12 +93,20 @@ export default function SignupPage() {
       
       router.push('/dashboard');
     } catch (error: any) {
-      console.error("Signup Error:", error);
-      toast({
+      if (error.code === 'auth/email-already-in-use') {
+        toast({
           variant: 'destructive',
-          title: 'Signup Failed',
-          description: error.message,
-      });
+          title: 'Email Already Registered',
+          description: 'This email is already in use. Please try logging in instead.',
+        });
+      } else {
+        console.error("Signup Error:", error);
+        toast({
+            variant: 'destructive',
+            title: 'Signup Failed',
+            description: error.message,
+        });
+      }
     }
   };
 
