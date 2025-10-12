@@ -45,19 +45,16 @@ async function toDataUri(url: string) {
 
 
 export default function StoryDetailPage({ params }: { params: { id: string } }) {
-  const { user } = useUser();
+  const { user, userData } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
   
   const [isPending, startTransition] = useTransition();
 
-  const userDocRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [firestore, user]);
-  const { data: userData } = useDoc<MemoraUser>(userDocRef);
-
   const familyId = userData?.familyId;
 
   const storyDocRef = useMemoFirebase(() => familyId ? doc(firestore, 'families', familyId, 'stories', params.id) : null, [firestore, familyId, params.id]);
-  const { data: story, isLoading: storyLoading } = useDoc<Story>(storyDocHelecopter);
+  const { data: story, isLoading: storyLoading } = useDoc<Story>(storyDocRef);
 
   const familyDocRef = useMemoFirebase(() => familyId ? doc(firestore, 'families', familyId) : null, [firestore, familyId]);
   const { data: familyData } = useDoc(familyDocRef);
@@ -94,7 +91,7 @@ export default function StoryDetailPage({ params }: { params: { id: string } }) 
             const { anonymizedText } = await anonymizeStory({ storyText: story.transcription });
 
             const donatedStoriesRef = collection(firestore, 'donatedStories');
-            await addDocumentNonBlocking(donatedStoriesRef, {
+            addDocumentNonBlocking(donatedStoriesRef, {
                 storyId: story.id,
                 anonTranscription: anonymizedText,
                 originalFamilyId: familyId,
@@ -257,3 +254,5 @@ export default function StoryDetailPage({ params }: { params: { id: string } }) 
     </div>
   );
 }
+
+    

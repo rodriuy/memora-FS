@@ -15,17 +15,13 @@ import {
   import { ArrowRight, PlusCircle } from "lucide-react"
   import Image from "next/image"
   import { PlaceHolderImages } from "@/lib/placeholder-images"
-  import { useUser, useFirestore, useCollection, useDoc, useMemoFirebase } from '@/firebase';
-  import { collection, query, doc } from 'firebase/firestore';
+  import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+  import { collection, query } from 'firebase/firestore';
   import type { Story } from '@/lib/types';
-  import type { User as MemoraUser } from '@/lib/types';
   
   export default function StoriesPage() {
-    const { user } = useUser();
+    const { userData } = useUser();
     const firestore = useFirestore();
-
-    const userDocRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [firestore, user]);
-    const { data: userData } = useDoc<MemoraUser>(userDocRef);
 
     const familyId = userData?.familyId;
 
@@ -100,3 +96,5 @@ import {
     )
   }
   
+
+    

@@ -12,11 +12,8 @@ import { doc, collection, query, where } from 'firebase/firestore';
 import type { User as MemoraUser } from '@/lib/types';
 
 export default function FamilyPage() {
-    const { user } = useUser();
+    const { userData } = useUser();
     const firestore = useFirestore();
-
-    const userDocRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [firestore, user]);
-    const { data: userData } = useDoc<MemoraUser>(userDocRef);
 
     const familyId = userData?.familyId;
 
@@ -67,3 +64,5 @@ export default function FamilyPage() {
         </div>
     );
 }
+
+    

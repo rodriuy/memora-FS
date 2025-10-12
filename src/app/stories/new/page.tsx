@@ -15,16 +15,16 @@ import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { Upload, Mic, FileAudio, BrainCircuit } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { useUser, useFirestore, useDoc, useMemoFirebase, addDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
+import { useUser, useFirestore, addDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { collection, doc, serverTimestamp } from 'firebase/firestore';
 import { transcribeAudioStory } from '@/ai/flows/transcribe-audio-story';
-import type { User as MemoraUser } from '@/lib/types';
+import { firebaseConfig } from '@/firebase/config';
 
 type Status = 'idle' | 'uploading' | 'transcribing' | 'complete';
 
 export default function NewStoryPage() {
-  const { user } = useUser();
+  const { userData } = useUser();
   const firestore = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
@@ -33,9 +33,6 @@ export default function NewStoryPage() {
   const [progress, setProgress] = useState(0);
   const [fileName, setFileName] = useState('');
   const [isPending, startTransition] = useTransition();
-
-  const userDocRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [firestore, user]);
-  const { data: userData } = useDoc<MemoraUser>(userDocRef);
 
   const familyId = userData?.familyId;
 
@@ -64,12 +61,16 @@ export default function NewStoryPage() {
             imageId: `story-${Math.floor(Math.random() * 4) + 1}`,
             createdAt: serverTimestamp()
         });
+
+        if (!newStoryDocRef) {
+          throw new Error("Could not create story document.");
+        }
         storyId = newStoryDocRef.id;
 
         // 2. Upload the file to Firebase Storage
         const storage = getStorage();
         // Construct gs:// URI for Genkit
-        const bucket = `${firebaseConfig.projectId}.appspot.com`;
+        const bucket = firebaseConfig.projectId + '.appspot.com';
         const storagePath = `audio/${familyId}/${storyId}/${file.name}`;
         const gsUri = `gs://${bucket}/${storagePath}`;
 
@@ -207,3 +208,5 @@ export default function NewStoryPage() {
     </div>
   );
 }
+
+    

@@ -30,12 +30,9 @@ import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 
 export default function Dashboard() {
-  const { user, isUserLoading } = useUser();
+  const { user, userData, isUserLoading } = useUser();
   const firestore = useFirestore();
   const router = useRouter();
-
-  const userDocRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [firestore, user]);
-  const { data: userData, isLoading: isUserDocLoading } = useDoc<MemoraUser>(userDocRef);
 
   const familyId = userData?.familyId;
 
@@ -62,7 +59,7 @@ export default function Dashboard() {
     }
   }, [user, isUserLoading, router]);
 
-  if (isUserLoading || isUserDocLoading) {
+  if (isUserLoading) {
       return (
         <div className="flex justify-center items-center h-[calc(100vh-4rem)]">
           <p>Loading your dashboard...</p>
@@ -232,3 +229,5 @@ export default function Dashboard() {
     </div>
   );
 }
+
+    
