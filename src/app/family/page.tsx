@@ -162,7 +162,7 @@ export default function FamilyPage() {
                         </DialogTrigger>
                     </CardHeader>
                     <CardContent>
-                        <FamilyMembers familyData={familyData} familyMembers={familyMembers} familyMembersLoading={isLoading || (familyData && !familyMembers && familyMembersLoading)} />
+                        <FamilyMembers familyData={familyData} familyMembers={familyMembers} familyMembersLoading={isLoading || (!!familyData && !familyMembers && familyMembersLoading)} />
                     </CardContent>
                 </Card>
                 {familyId && <InviteMemberModal familyId={familyId} />}
@@ -170,3 +170,5 @@ export default function FamilyPage() {
         </div>
     );
 }
+
+    

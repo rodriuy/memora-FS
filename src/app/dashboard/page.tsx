@@ -231,7 +231,7 @@ export default function Dashboard() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-           {familyMembersLoading ? (
+           {familyMembersLoading && (!familyMembers || familyMembers.length === 0) ? (
                 <div className="space-y-4">
                     <Skeleton className="h-16 w-full" />
                     <Skeleton className="h-16 w-full" />
@@ -274,3 +274,5 @@ export default function Dashboard() {
     </div>
   );
 }
+
+    
