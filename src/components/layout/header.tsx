@@ -24,7 +24,9 @@ function getPageTitle(pathname: string): string {
     if (segments.length === 0) return 'Dashboard';
     
     // Handle dynamic routes like /stories/[id]
-    if (segments[0] === 'stories' && segments.length > 1 && segments[1] !== 'new') {
+    if (segments[0] === 'stories' && segments.length > 1) {
+        if (segments[1] === 'new') return 'Add New Story';
+        if (segments[2] === 'edit') return 'Edit Story';
         return 'Story Details';
     }
     
