@@ -137,7 +137,9 @@ export default function ProfilePage() {
             uploadTask.on('state_changed', 
                 (snapshot) => { /* Progress handling can be added here */ },
                 (error) => {
-                    throw error;
+                    console.error("Upload failed:", error);
+                    toast({ variant: 'destructive', title: 'Error de Subida', description: 'No se pudo subir la imagen.' });
+                    setIsUploading(false); // Ensure state is reset on error
                 },
                 async () => {
                     const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
@@ -148,8 +150,8 @@ export default function ProfilePage() {
                 }
             );
         } catch (error) {
-            console.error("Upload failed:", error);
-            toast({ variant: 'destructive', title: 'Error de Subida', description: 'No se pudo subir la imagen.' });
+            console.error("Upload initialization failed:", error);
+            toast({ variant: 'destructive', title: 'Error de Subida', description: 'No se pudo iniciar la subida de la imagen.' });
             setIsUploading(false);
         }
     };
@@ -280,3 +282,5 @@ export default function ProfilePage() {
         </div>
     );
 }
+
+    
