@@ -1,0 +1,19 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Allow users to read and write to their own avatar folder
+    match /avatars/{userId}/{allPaths=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Allow read access to story audio files for family members
+    // Note: This requires the client to have the familyId, which is not directly available in storage rules.
+    // A more robust solution would use custom claims, but for this demo, we'll keep it simple
+    // and rely on unguessable URLs, assuming read access is generally safe for authenticated users.
+    match /audio/{familyId}/{storyId}/{fileName} {
+      // This rule is simplified. For production, you'd verify family membership.
+      allow read: if request.auth != null;
+    }
+  }
+}
