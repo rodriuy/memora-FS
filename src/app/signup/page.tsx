@@ -2,7 +2,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -17,19 +17,22 @@ import { useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth, useFirestore } from '@/firebase';
 import { createUserWithEmailAndPassword, updateProfile, GoogleAuthProvider, signInWithPopup, type User as FirebaseUser } from 'firebase/auth';
-import { doc, getDoc, collection, serverTimestamp, writeBatch } from 'firebase/firestore';
+import { doc, getDoc, collection, serverTimestamp, writeBatch, arrayUnion } from 'firebase/firestore';
 
 
 export default function SignupPage() {
   const auth = useAuth();
   const firestore = useFirestore();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { toast } = useToast();
 
   const [displayName, setDisplayName] = useState('');
   const [familyName, setFamilyName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  
+  const familyIdFromInvite = searchParams.get('familyId');
 
   const setupUserAndFamilyIfNeeded = async (user: FirebaseUser) => {
     if (!firestore) return;
@@ -43,23 +46,35 @@ export default function SignupPage() {
 
     const batch = writeBatch(firestore);
 
-    const familyRef = doc(collection(firestore, 'families'));
-    const finalFamilyName = familyName.trim() || `${user.displayName || 'My'}'s Family`;
-    
-    const familyData = {
-      adminId: user.uid,
-      familyName: finalFamilyName,
-      memberIds: [user.uid],
-      subscriptionTier: 'free',
-      createdAt: serverTimestamp(),
-    };
-    batch.set(familyRef, familyData);
+    let finalFamilyId = familyIdFromInvite;
+
+    // If user is NOT joining via invite link, create a new family
+    if (!familyIdFromInvite) {
+        const familyRef = doc(collection(firestore, 'families'));
+        finalFamilyId = familyRef.id;
+        const finalFamilyName = familyName.trim() || `${user.displayName || 'Mi'}'s Familia`;
+        
+        const familyData = {
+          adminId: user.uid,
+          familyName: finalFamilyName,
+          memberIds: [user.uid],
+          subscriptionTier: 'free',
+          createdAt: serverTimestamp(),
+        };
+        batch.set(familyRef, familyData);
+    } else {
+        // If user IS joining via invite link, add them to existing family
+        const familyRef = doc(firestore, 'families', familyIdFromInvite);
+        batch.update(familyRef, {
+            memberIds: arrayUnion(user.uid)
+        });
+    }
 
     const userData = {
         userId: user.uid,
         email: user.email,
         displayName: user.displayName,
-        familyId: familyRef.id,
+        familyId: finalFamilyId,
         avatarId: `user-${Math.floor(Math.random() * 4) + 1}`,
         bio: '',
     };
@@ -74,10 +89,12 @@ export default function SignupPage() {
         toast({
             variant: "destructive",
             title: "Faltan campos",
-            description: "Por favor, completa todos los campos.",
+            description: "Por favor, completa todos los campos requeridos.",
         });
         return;
     }
+    if (!auth) return;
+
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       
@@ -142,9 +159,11 @@ export default function SignupPage() {
   return (
     <Card className="mx-auto max-w-sm w-full">
       <CardHeader>
-        <CardTitle className="text-xl font-headline">Regístrate en Memora</CardTitle>
+        <CardTitle className="text-xl font-headline">
+            {familyIdFromInvite ? 'Únete a la Familia' : 'Regístrate en Memora'}
+        </CardTitle>
         <CardDescription>
-          Ingresa tu información para crear una cuenta y empezar a preservar la historia de tu familia.
+          {familyIdFromInvite ? 'Estás a un paso de unirte al círculo familiar.' : 'Ingresa tu información para crear una cuenta y empezar a preservar la historia de tu familia.'}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -159,15 +178,17 @@ export default function SignupPage() {
               onChange={(e) => setDisplayName(e.target.value)}
             />
           </div>
-           <div className="grid gap-2">
-            <Label htmlFor="family-name">Nombre de la Familia (Opcional)</Label>
-            <Input 
-              id="family-name" 
-              placeholder="Ej: Familia Pérez" 
-              value={familyName}
-              onChange={(e) => setFamilyName(e.target.value)}
-            />
-          </div>
+           {!familyIdFromInvite && (
+            <div className="grid gap-2">
+                <Label htmlFor="family-name">Nombre de la Familia (Opcional)</Label>
+                <Input 
+                id="family-name" 
+                placeholder="Ej: Familia Pérez" 
+                value={familyName}
+                onChange={(e) => setFamilyName(e.target.value)}
+                />
+            </div>
+           )}
           <div className="grid gap-2">
             <Label htmlFor="email">Email</Label>
             <Input
@@ -189,7 +210,7 @@ export default function SignupPage() {
             />
           </div>
           <Button onClick={handleSignup} type="submit" className="w-full">
-              Crear una cuenta
+              {familyIdFromInvite ? 'Unirme y Crear Cuenta' : 'Crear una cuenta'}
           </Button>
           <Button onClick={handleGoogleSignup} variant="outline" className="w-full">
             Registrarse con Google

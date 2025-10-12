@@ -14,6 +14,30 @@ import { useToast } from '@/hooks/use-toast';
 import { doc } from 'firebase/firestore';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { updateProfile } from 'firebase/auth';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import Image from 'next/image';
+
+function AvatarSelectionModal({ currentAvatarId, onSelectAvatar }: { currentAvatarId?: string, onSelectAvatar: (avatarId: string) => void }) {
+    const userAvatars = PlaceHolderImages.filter(p => p.id.startsWith('user-'));
+
+    return (
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>Selecciona tu avatar</DialogTitle>
+            </DialogHeader>
+            <div className="grid grid-cols-4 gap-4 py-4">
+                {userAvatars.map(avatar => (
+                    <div key={avatar.id} className="cursor-pointer" onClick={() => onSelectAvatar(avatar.id)}>
+                        <Avatar className={`w-20 h-20 border-4 ${currentAvatarId === avatar.id ? 'border-primary' : 'border-transparent'}`}>
+                            <AvatarImage src={avatar.imageUrl} alt={avatar.description} />
+                            <AvatarFallback>{avatar.id}</AvatarFallback>
+                        </Avatar>
+                    </div>
+                ))}
+            </div>
+        </DialogContent>
+    )
+}
 
 export default function ProfilePage() {
     const { user, userData, isUserLoading, auth } = useUser();
@@ -22,12 +46,14 @@ export default function ProfilePage() {
 
     const [displayName, setDisplayName] = useState('');
     const [bio, setBio] = useState('');
+    const [avatarId, setAvatarId] = useState('');
     const [isSaving, setIsSaving] = useState(false);
 
     useEffect(() => {
         if (userData) {
             setDisplayName(userData.displayName || '');
             setBio(userData.bio || '');
+            setAvatarId(userData.avatarId || '');
         }
     }, [userData]);
 
@@ -38,13 +64,12 @@ export default function ProfilePage() {
         try {
             const userDocRef = doc(firestore, 'users', user.uid);
             
-            // Update Firestore document
             updateDocumentNonBlocking(userDocRef, {
                 displayName,
                 bio,
+                avatarId,
             });
 
-            // Also update Firebase Auth profile
             if (auth?.currentUser && displayName !== auth.currentUser.displayName) {
                 await updateProfile(auth.currentUser, { displayName });
             }
@@ -65,12 +90,16 @@ export default function ProfilePage() {
             setIsSaving(false);
         }
     };
+    
+    const handleAvatarSelect = (selectedAvatarId: string) => {
+        setAvatarId(selectedAvatarId);
+    }
 
     if (isUserLoading || !userData) {
         return (
             <div className="p-4 md:p-8">
                 <Card className="max-w-2xl mx-auto">
-                    <CardHeader className="text-center">
+                    <CardHeader className="text-center items-center">
                         <Skeleton className="w-28 h-28 rounded-full mx-auto mb-4" />
                         <Skeleton className="h-8 w-48 mx-auto" />
                         <Skeleton className="h-5 w-64 mx-auto mt-2" />
@@ -92,54 +121,59 @@ export default function ProfilePage() {
             </div>
         );
     }
-
-    const avatarImage = PlaceHolderImages.find(p => p.id === userData.avatarId)?.imageUrl || `https://i.pravatar.cc/150?u=${user?.uid}`;
+    
+    const avatarImage = PlaceHolderImages.find(p => p.id === avatarId)?.imageUrl || `https://i.pravatar.cc/150?u=${user?.uid}`;
 
     return (
         <div className="p-4 md:p-8">
-            <Card className="max-w-2xl mx-auto">
-                <CardHeader className="text-center items-center">
-                     <Avatar className="w-28 h-28 mb-4 border-4 border-primary">
-                        <AvatarImage src={avatarImage} alt={userData.displayName} />
-                        <AvatarFallback>{userData.displayName?.substring(0, 2)}</AvatarFallback>
-                    </Avatar>
-                    <CardTitle className="font-headline text-2xl">Mi Perfil</CardTitle>
-                    <CardDescription>Personaliza la información de tu perfil público.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                    <div className="space-y-2">
-                        <Label htmlFor="displayName">Nombre</Label>
-                        <Input 
-                            id="displayName" 
-                            value={displayName}
-                            onChange={(e) => setDisplayName(e.target.value)}
-                        />
-                    </div>
-                     <div className="space-y-2">
-                        <Label htmlFor="email">Email</Label>
-                        <Input 
-                            id="email" 
-                            value={userData.email}
-                            disabled
-                        />
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="bio">Biografía</Label>
-                        <Textarea 
-                            id="bio"
-                            placeholder="Cuéntanos un poco sobre ti..."
-                            value={bio}
-                            onChange={(e) => setBio(e.target.value)}
-                            rows={4}
-                        />
-                    </div>
-                </CardContent>
-                <CardFooter>
-                    <Button onClick={handleSave} disabled={isSaving}>
-                        {isSaving ? 'Guardando...' : 'Guardar Cambios'}
-                    </Button>
-                </CardFooter>
-            </Card>
+             <Dialog>
+                <Card className="max-w-2xl mx-auto">
+                    <CardHeader className="text-center items-center">
+                        <DialogTrigger asChild>
+                            <Avatar className="w-28 h-28 mb-4 border-4 border-primary cursor-pointer hover:opacity-80 transition-opacity">
+                                <AvatarImage src={avatarImage} alt={userData.displayName} />
+                                <AvatarFallback>{userData.displayName?.substring(0, 2)}</AvatarFallback>
+                            </Avatar>
+                        </DialogTrigger>
+                        <CardTitle className="font-headline text-2xl">Mi Perfil</CardTitle>
+                        <CardDescription>Personaliza la información de tu perfil público.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="displayName">Nombre</Label>
+                            <Input 
+                                id="displayName" 
+                                value={displayName}
+                                onChange={(e) => setDisplayName(e.target.value)}
+                            />
+                        </div>
+                         <div className="space-y-2">
+                            <Label htmlFor="email">Email</Label>
+                            <Input 
+                                id="email" 
+                                value={userData.email}
+                                disabled
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="bio">Biografía</Label>
+                            <Textarea 
+                                id="bio"
+                                placeholder="Cuéntanos un poco sobre ti..."
+                                value={bio}
+                                onChange={(e) => setBio(e.target.value)}
+                                rows={4}
+                            />
+                        </div>
+                    </CardContent>
+                    <CardFooter>
+                        <Button onClick={handleSave} disabled={isSaving}>
+                            {isSaving ? 'Guardando...' : 'Guardar Cambios'}
+                        </Button>
+                    </CardFooter>
+                </Card>
+                <AvatarSelectionModal currentAvatarId={avatarId} onSelectAvatar={handleAvatarSelect} />
+            </Dialog>
         </div>
     );
 }

@@ -6,16 +6,56 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { PlaceHolderImages } from "@/lib/placeholder-images";
 import { Badge } from "@/components/ui/badge";
-import { PlusCircle, UserX, Trash2 } from "lucide-react";
+import { PlusCircle, UserX, Trash2, Copy } from "lucide-react";
 import { useUser, useFirestore, useDoc, useMemoFirebase, useCollection, updateDocumentNonBlocking } from '@/firebase';
 import { doc, collection, query, where, documentId, arrayRemove } from 'firebase/firestore';
 import type { User as MemoraUser, Family } from '@/lib/types';
 import { Skeleton } from "@/components/ui/skeleton";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { useToast } from "@/hooks/use-toast";
+import { useState } from "react";
+
+function InviteMemberModal({ familyId }: { familyId: string }) {
+    const { toast } = useToast();
+    const [origin, setOrigin] = useState('');
+
+    useState(() => {
+        if (typeof window !== 'undefined') {
+            setOrigin(window.location.origin);
+        }
+    }, []);
+    
+    const inviteLink = `${origin}/signup?familyId=${familyId}`;
+
+    const copyToClipboard = () => {
+        navigator.clipboard.writeText(inviteLink);
+        toast({ title: 'Enlace copiado', description: 'El enlace de invitación ha sido copiado a tu portapapeles.' });
+    };
+
+    return (
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle className="font-headline">Invitar a un miembro a tu familia</DialogTitle>
+                <DialogDescription>
+                    Comparte este enlace con el miembro de tu familia que quieras invitar. Cuando se registren usando este enlace, se unirán automáticamente.
+                </DialogDescription>
+            </DialogHeader>
+            <div className="flex items-center space-x-2">
+                <Input value={inviteLink} readOnly />
+                <Button type="button" size="sm" onClick={copyToClipboard}>
+                    <Copy className="h-4 w-4" />
+                </Button>
+            </div>
+        </DialogContent>
+    );
+}
 
 function FamilyMembers({ familyData, familyMembers, familyMembersLoading }: { familyData: Family | null, familyMembers: MemoraUser[] | null, familyMembersLoading: boolean }) {
     const { user: currentUser } = useUser();
     const firestore = useFirestore();
     const userImage = (id: string) => PlaceHolderImages.find(p => p.id === id)?.imageUrl || '';
+    const { toast } = useToast();
 
     const handleRemoveMember = (memberId: string) => {
         if (!firestore || !familyData) return;
@@ -23,6 +63,7 @@ function FamilyMembers({ familyData, familyMembers, familyMembersLoading }: { fa
         updateDocumentNonBlocking(familyDocRef, {
             memberIds: arrayRemove(memberId)
         });
+        toast({ title: "Miembro eliminado", description: "El usuario ha sido eliminado de la familia."});
         // Note: In a full app, you would also need to handle re-assigning the user to a new family or deleting them.
     };
 
@@ -66,7 +107,7 @@ function FamilyMembers({ familyData, familyMembers, familyMembersLoading }: { fa
                     </Badge>
                     <div className="mt-4 flex gap-2">
                          {isAdmin && member.id !== currentUser?.uid && (
-                            <Button variant="ghost" size="sm" onClick={() => handleRemoveMember(member.id)}>
+                            <Button variant="destructive" size="sm" onClick={() => handleRemoveMember(member.id)}>
                                 <Trash2 className="mr-2 h-4 w-4" />
                                 Eliminar
                             </Button>
@@ -104,20 +145,25 @@ export default function FamilyPage() {
 
     return (
         <div className="p-4 md:p-8">
-            <Card>
-                <CardHeader className="flex flex-row items-center justify-between">
-                    <div>
-                         {isLoading ? <Skeleton className="h-8 w-48 mb-2" /> : <CardTitle className="font-headline text-2xl">{familyData?.familyName}</CardTitle>}
-                         {isLoading ? <Skeleton className="h-5 w-64" /> : <CardDescription>Gestiona quién forma parte de la cuenta Memora de tu familia.</CardDescription>}
-                    </div>
-                    <Button>
-                        <PlusCircle className="mr-2 h-4 w-4" /> Invitar Miembro
-                    </Button>
-                </CardHeader>
-                <CardContent>
-                    <FamilyMembers familyData={familyData} familyMembers={familyMembers} familyMembersLoading={isLoading || (familyData && !familyMembers && familyMembersLoading)} />
-                </CardContent>
-            </Card>
+             <Dialog>
+                <Card>
+                    <CardHeader className="flex flex-row items-center justify-between">
+                        <div>
+                             {isLoading ? <Skeleton className="h-8 w-48 mb-2" /> : <CardTitle className="font-headline text-2xl">{familyData?.familyName}</CardTitle>}
+                             {isLoading ? <Skeleton className="h-5 w-64" /> : <CardDescription>Gestiona quién forma parte de la cuenta Memora de tu familia.</CardDescription>}
+                        </div>
+                        <DialogTrigger asChild>
+                            <Button disabled={!familyId}>
+                                <PlusCircle className="mr-2 h-4 w-4" /> Invitar Miembro
+                            </Button>
+                        </DialogTrigger>
+                    </CardHeader>
+                    <CardContent>
+                        <FamilyMembers familyData={familyData} familyMembers={familyMembers} familyMembersLoading={isLoading || (familyData && !familyMembers && familyMembersLoading)} />
+                    </CardContent>
+                </Card>
+                {familyId && <InviteMemberModal familyId={familyId} />}
+            </Dialog>
         </div>
     );
 }

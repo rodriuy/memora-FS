@@ -16,8 +16,9 @@ export default function SubscriptionPage() {
 
     const familyDocRef = useMemoFirebase(() => familyId && firestore ? doc(firestore, 'families', familyId) : null, [firestore, familyId]);
     const { data: familyData, isLoading: familyLoading } = useDoc(familyDocRef);
-
-    const isPremium = familyData?.subscriptionTier === 'premium';
+    
+    // For demo purposes, we are making Premium features available to all.
+    const isPremium = true; 
     
     // Mock usage data, in a real app this would also come from Firestore
     const storiesUsage = 3;
@@ -45,11 +46,11 @@ export default function SubscriptionPage() {
                     Plan de Suscripción
                 </h1>
                 <p className="text-muted-foreground mb-8">
-                    Gestiona tu plan y explora funciones premium para mejorar el legado de tu familia.
+                    Actualmente, todas las funciones premium están habilitadas para esta demostración.
                 </p>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <Card className={`flex flex-col ${isPremium ? 'border-muted' : 'border-primary border-2'}`}>
+                    <Card className={`flex flex-col border-muted`}>
                         <CardHeader>
                             <CardTitle className="font-headline">Plan Gratuito</CardTitle>
                             <CardDescription>Para empezar a preservar recuerdos.</CardDescription>
@@ -84,13 +85,13 @@ export default function SubscriptionPage() {
                             )}
                         </CardContent>
                         <CardFooter>
-                            <Button variant="outline" className="w-full" disabled={!isPremium}>
-                                {isPremium ? 'Bajar de plan' : 'Plan Actual'}
+                            <Button variant="outline" className="w-full" disabled={true}>
+                                Bajar de plan no disponible
                             </Button>
                         </CardFooter>
                     </Card>
 
-                    <Card className={`flex flex-col relative overflow-hidden ${isPremium ? 'border-primary border-2' : ''}`}>
+                    <Card className={`flex flex-col relative overflow-hidden border-primary border-2`}>
                          <div className="absolute top-0 right-0 p-2 bg-primary rounded-bl-lg">
                             <Star className="h-5 w-5 text-primary-foreground fill-current" />
                          </div>
@@ -112,8 +113,8 @@ export default function SubscriptionPage() {
                             </ul>
                         </CardContent>
                         <CardFooter>
-                             <Button className="w-full" disabled={isPremium}>
-                                {isPremium ? 'Plan Actual' : 'Actualizar a Premium'}
+                             <Button className="w-full" disabled={true}>
+                                Plan Actual (Demo)
                             </Button>
                         </CardFooter>
                     </Card>
