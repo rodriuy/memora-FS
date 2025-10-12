@@ -138,13 +138,14 @@ export default function FamilyPage() {
     const memberIds = familyData?.memberIds;
     
     const familyMembersQuery = useMemoFirebase(() => {
+        // Crucial: Only create the query if we have the member IDs.
         if (!firestore || !memberIds || memberIds.length === 0) return null;
         return query(collection(firestore, 'users'), where(documentId(), 'in', memberIds));
     }, [firestore, memberIds]);
 
     const { data: familyMembers, isLoading: familyMembersLoading } = useCollection<MemoraUser>(familyMembersQuery);
 
-    const isLoading = familyLoading || (!familyData && familyMembersLoading);
+    const isPageLoading = familyLoading || (!!familyData && !familyMembers && familyMembersLoading);
 
     return (
         <div className="p-4 md:p-8">
@@ -152,8 +153,8 @@ export default function FamilyPage() {
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between">
                         <div>
-                             {isLoading ? <Skeleton className="h-8 w-48 mb-2" /> : <CardTitle className="font-headline text-2xl">{familyData?.familyName}</CardTitle>}
-                             {isLoading ? <Skeleton className="h-5 w-64" /> : <CardDescription>Gestiona quién forma parte de la cuenta Memora de tu familia.</CardDescription>}
+                             {familyLoading ? <Skeleton className="h-8 w-48 mb-2" /> : <CardTitle className="font-headline text-2xl">{familyData?.familyName}</CardTitle>}
+                             {familyLoading ? <Skeleton className="h-5 w-64" /> : <CardDescription>Gestiona quién forma parte de la cuenta Memora de tu familia.</CardDescription>}
                         </div>
                         <DialogTrigger asChild>
                             <Button disabled={!familyId}>
@@ -162,7 +163,7 @@ export default function FamilyPage() {
                         </DialogTrigger>
                     </CardHeader>
                     <CardContent>
-                        <FamilyMembers familyData={familyData} familyMembers={familyMembers} familyMembersLoading={isLoading || (!!familyData && !familyMembers && familyMembersLoading)} />
+                        <FamilyMembers familyData={familyData} familyMembers={familyMembers} familyMembersLoading={isPageLoading} />
                     </CardContent>
                 </Card>
                 {familyId && <InviteMemberModal familyId={familyId} />}

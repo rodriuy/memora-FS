@@ -57,9 +57,11 @@ export default function Dashboard() {
   const memberIds = familyData?.memberIds;
 
   const familyMembersQuery = useMemoFirebase(() => {
+    // Crucial: Only create the query if we have the member IDs.
     if (!firestore || !memberIds || memberIds.length === 0) return null;
     return query(collection(firestore, 'users'), where(documentId(), 'in', memberIds));
   }, [firestore, memberIds]);
+
   const { data: familyMembers, isLoading: familyMembersLoading } = useCollection<MemoraUser>(familyMembersQuery);
 
   const recentStories = stories ? stories.slice(0, 3) : [];
@@ -78,6 +80,9 @@ export default function Dashboard() {
   }, [user, isUserLoading, router]);
 
   const isLoading = isUserLoading || familyLoading;
+  
+  // This derived state is more precise. It's loading members if the family is loaded but members are not.
+  const isFamilyMembersLoading = !familyLoading && (!familyMembers && familyMembersLoading);
 
   if (isLoading) {
       return (
@@ -236,7 +241,7 @@ export default function Dashboard() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-           {familyMembersLoading && (!familyMembers || familyMembers.length === 0) ? (
+           {isFamilyMembersLoading ? (
                 <div className="space-y-4">
                     <Skeleton className="h-16 w-full" />
                     <Skeleton className="h-16 w-full" />
