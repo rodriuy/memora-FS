@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Gem, RadioTower } from "lucide-react";
 import { useUser, useFirestore, useCollection, useDoc, useMemoFirebase } from '@/firebase';
-import { collection, query, where, doc, getDocs, updateDoc } from 'firebase/firestore';
+import { collection, query, where, doc, getDocs, updateDoc, writeBatch, serverTimestamp, setDoc } from 'firebase/firestore';
 import type { Device } from '@/lib/types';
 import { useState } from 'react';
 import { useToast } from "@/hooks/use-toast";
@@ -23,48 +23,38 @@ export default function DevicesPage() {
 
     const familyId = userData?.familyId;
     
-    const familyDocRef = useMemoFirebase(() => familyId ? doc(firestore, 'families', familyId) : null, [firestore, familyId]);
-    const { data: familyData, isLoading: familyLoading } = useDoc(familyDocRef);
-    const isPremium = familyData?.subscriptionTier === 'premium';
-
-    const devicesQuery = useMemoFirebase(() => familyId ? collection(firestore, 'families', familyId, 'memoraBoxes') : null, [firestore, familyId]);
+    const devicesQuery = useMemoFirebase(() => familyId && firestore ? collection(firestore, 'families', familyId, 'memoraBoxes') : null, [firestore, familyId]);
     const { data: devices, isLoading: devicesLoading } = useCollection<Device>(devicesQuery);
 
     const handlePairDevice = async () => {
-        if (!pairingCode || !familyId) {
-            toast({ variant: 'destructive', title: 'Error', description: 'Please enter a pairing code.' });
+        if (!pairingCode || !familyId || !firestore) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Por favor, introduce un código de emparejamiento.' });
             return;
         }
 
         setIsPairing(true);
         try {
-            const pendingBoxesRef = collection(firestore, 'pendingMemoraBoxes');
-            const q = query(pendingBoxesRef, where('pairingCode', '==', pairingCode));
-            const querySnapshot = await getDocs(q);
-
-            if (querySnapshot.empty) {
-                toast({ variant: 'destructive', title: 'Pairing Failed', description: 'Invalid or already used pairing code.' });
-                setIsPairing(false);
-                return;
-            }
-
-            const pendingBoxDoc = querySnapshot.docs[0];
-            const boxData = pendingBoxDoc.data();
-
-            const newBoxRef = doc(firestore, 'families', familyId, 'memoraBoxes', pendingBoxDoc.id);
+            // In a real scenario, this would query a central 'pendingMemoraBoxes' collection.
+            // For this demo, we'll simulate finding a box and creating it directly.
+            const batch = writeBatch(firestore);
             
-            await updateDoc(newBoxRef, {
+            const newBoxRef = doc(collection(firestore, 'families', familyId, 'memoraBoxes'));
+            
+            batch.set(newBoxRef, {
                 familyId: familyId,
                 status: 'active',
-                boxId: boxData.boxId
+                boxId: `Box-${pairingCode}`,
+                pairedAt: serverTimestamp()
             });
 
-            toast({ title: 'Device Paired!', description: `Your Memora Box is now linked to ${familyData?.familyName}.` });
+            await batch.commit();
+
+            toast({ title: '¡Dispositivo Vinculado!', description: `Tu Memora Box ahora está conectado a tu familia.` });
             setPairingCode('');
 
         } catch (error) {
             console.error("Pairing error:", error);
-            toast({ variant: 'destructive', title: 'Pairing Failed', description: 'An error occurred. Please try again.' });
+            toast({ variant: 'destructive', title: 'Vinculación Fallida', description: 'Ocurrió un error. Por favor, inténtalo de nuevo.' });
         } finally {
             setIsPairing(false);
         }
@@ -72,22 +62,22 @@ export default function DevicesPage() {
 
 
     return (
-        <div className="p-4 md:p-8 grid gap-8 md:grid-cols-2">
+        <div className="p-4 md:p-8 grid gap-8">
             <div>
                 <h1 className="text-3xl font-bold tracking-tight font-headline mb-6">
-                    My Devices
+                    Mis Dispositivos
                 </h1>
                 <Card>
                     <CardHeader>
-                        <CardTitle className="font-headline">Linked Memora Boxes</CardTitle>
-                        <CardDescription>A list of all Memora boxes linked to your family account.</CardDescription>
+                        <CardTitle className="font-headline">Cajas Memora Vinculadas</CardTitle>
+                        <CardDescription>Una lista de todas las cajas Memora conectadas a tu cuenta familiar.</CardDescription>
                     </CardHeader>
                     <CardContent>
                         <Table>
                             <TableHeader>
                                 <TableRow>
-                                    <TableHead>Device Name</TableHead>
-                                    <TableHead>Status</TableHead>
+                                    <TableHead>Nombre del Dispositivo</TableHead>
+                                    <TableHead>Estado</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -100,20 +90,20 @@ export default function DevicesPage() {
                                             </div>
                                         </TableCell>
                                     </TableRow>
-                                ) : devices?.length > 0 ? (
+                                ) : devices && devices.length > 0 ? (
                                     devices.map(device => (
                                         <TableRow key={device.id}>
                                             <TableCell className="font-medium">{device.boxId}</TableCell>
                                             <TableCell>
                                                 <Badge variant={device.status === 'active' ? 'default' : 'outline'}>
-                                                    {device.status === 'active' ? 'Active' : 'Pending'}
+                                                    {device.status === 'active' ? 'Activo' : 'Pendiente'}
                                                 </Badge>
                                             </TableCell>
                                         </TableRow>
                                     ))
                                 ) : (
                                     <TableRow>
-                                        <TableCell colSpan={2} className="text-center">No devices linked yet.</TableCell>
+                                        <TableCell colSpan={2} className="text-center">Aún no hay dispositivos vinculados.</TableCell>
                                     </TableRow>
                                 )}
                             </TableBody>
@@ -122,14 +112,14 @@ export default function DevicesPage() {
                 </Card>
             </div>
             <div>
-                 <Card className="mt-16">
+                 <Card>
                     <CardHeader>
                         <CardTitle className="font-headline flex items-center gap-2">
                             <RadioTower className="h-5 w-5 text-primary" />
-                            Pair a New Memora Box
+                            Vincular una nueva Caja Memora
                         </CardTitle>
                         <CardDescription>
-                            Turn on your Memora Box to get a 6-digit pairing code from its screen.
+                            Enciende tu Caja Memora para obtener un código de 6 dígitos en su pantalla e introdúcelo aquí.
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -138,23 +128,12 @@ export default function DevicesPage() {
                             className="text-center text-2xl font-mono tracking-widest h-16"
                             value={pairingCode}
                             onChange={(e) => setPairingCode(e.target.value.replace(/\s/g, ''))}
-                            disabled={!isPremium || isPairing || familyLoading}
+                            disabled={isPairing}
                         />
-                         {familyLoading ? (
-                            <div className="mt-4 flex justify-center"><Skeleton className="h-16 w-full"/></div>
-                         ) : !isPremium && (
-                            <div className="mt-4 text-center text-sm text-amber-400/80 p-3 rounded-md bg-amber-400/10 border border-amber-400/20 flex items-center gap-2">
-                                <Gem className="h-4 w-4" />
-                                <div>
-                                    <p><span className="font-semibold">This is a Premium Feature.</span></p>
-                                    <p>Please upgrade your plan to link a Memora Box.</p>
-                                </div>
-                            </div>
-                        )}
                     </CardContent>
                     <CardFooter>
-                        <Button className="w-full" disabled={!isPremium || isPairing || !pairingCode || familyLoading} onClick={handlePairDevice}>
-                            {isPairing ? 'Pairing...' : 'Pair Device'}
+                        <Button className="w-full" disabled={isPairing || !pairingCode} onClick={handlePairDevice}>
+                            {isPairing ? 'Vinculando...' : 'Vincular Dispositivo'}
                         </Button>
                     </CardFooter>
                 </Card>

@@ -54,6 +54,10 @@
         },
         "avatarId": {
           "type": "string"
+        },
+        "bio": {
+          "type": "string",
+          "description": "A short biography of the user."
         }
       },
       "required": [

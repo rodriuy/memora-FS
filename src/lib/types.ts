@@ -18,6 +18,7 @@ export type User = {
   displayName: string;
   familyId: string;
   avatarId?: string;
+  bio?: string;
 };
 
 export type Family = {

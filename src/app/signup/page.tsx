@@ -15,7 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { useAuth, useFirestore, errorEmitter, FirestorePermissionError } from '@/firebase';
+import { useAuth, useFirestore } from '@/firebase';
 import { createUserWithEmailAndPassword, updateProfile, GoogleAuthProvider, signInWithPopup, type User as FirebaseUser } from 'firebase/auth';
 import { doc, getDoc, collection, serverTimestamp, writeBatch } from 'firebase/firestore';
 
@@ -27,10 +27,12 @@ export default function SignupPage() {
   const { toast } = useToast();
 
   const [displayName, setDisplayName] = useState('');
+  const [familyName, setFamilyName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
   const setupUserAndFamilyIfNeeded = async (user: FirebaseUser) => {
+    if (!firestore) return;
     const userRef = doc(firestore, 'users', user.uid);
     const userSnap = await getDoc(userRef);
 
@@ -42,9 +44,11 @@ export default function SignupPage() {
     const batch = writeBatch(firestore);
 
     const familyRef = doc(collection(firestore, 'families'));
+    const finalFamilyName = familyName.trim() || `${user.displayName || 'My'}'s Family`;
+    
     const familyData = {
       adminId: user.uid,
-      familyName: `${user.displayName || 'My'}'s Family`,
+      familyName: finalFamilyName,
       memberIds: [user.uid],
       subscriptionTier: 'free',
       createdAt: serverTimestamp(),
@@ -57,25 +61,11 @@ export default function SignupPage() {
         displayName: user.displayName,
         familyId: familyRef.id,
         avatarId: `user-${Math.floor(Math.random() * 4) + 1}`,
+        bio: '',
     };
     batch.set(userRef, userData);
     
-    // The batch write is a critical part of signup, so we await it.
-    // The catch block will now handle permission errors specifically.
-    await batch.commit().catch((error) => {
-        // This is a simplified context for a batch write.
-        // We will report the error on the user creation as it's a key part.
-        const permissionError = new FirestorePermissionError({
-            path: userRef.path,
-            operation: 'create',
-            requestResourceData: userData,
-        });
-        errorEmitter.emit('permission-error', permissionError);
-
-        // Also re-throw the original error to be caught by the outer try/catch
-        // so the user still gets a toast notification.
-        throw error;
-    });
+    await batch.commit();
   };
 
 
@@ -83,8 +73,8 @@ export default function SignupPage() {
     if (!displayName || !email || !password) {
         toast({
             variant: "destructive",
-            title: "Missing fields",
-            description: "Please fill out all fields.",
+            title: "Faltan campos",
+            description: "Por favor, completa todos los campos.",
         });
         return;
     }
@@ -93,33 +83,32 @@ export default function SignupPage() {
       
       await updateProfile(userCredential.user, { displayName });
 
-      await setupUserAndFamilyIfNeeded(userCredential.user);
+      // We need to reload user to get the displayName updated for setup
+      await userCredential.user.reload();
+      const updatedUser = auth.currentUser;
+
+      if (updatedUser) {
+        await setupUserAndFamilyIfNeeded(updatedUser);
+      }
 
       toast({
-        title: "Account Created",
-        description: "Welcome to Memora! Redirecting you to the dashboard...",
+        title: "Cuenta Creada",
+        description: "¡Bienvenido/a a Memora! Te estamos redirigiendo...",
       });
       
       router.push('/dashboard');
     } catch (error: any) {
-      // The FirestorePermissionError is already emitted, so we just handle UI feedback.
-      if (error.name === 'FirebaseError' && error.request) {
-         // This is our custom error, we can just let the global listener handle it
-         // but we prevent the generic toast.
-         return;
-      }
-
       if (error.code === 'auth/email-already-in-use') {
         toast({
           variant: 'destructive',
-          title: 'Email Already Registered',
-          description: 'This email is already in use. Please try logging in instead.',
+          title: 'Email ya registrado',
+          description: 'Este email ya está en uso. Por favor, intenta iniciar sesión.',
         });
       } else {
         console.error("Signup Error:", error);
         toast({
             variant: 'destructive',
-            title: 'Signup Failed',
+            title: 'Fallo en el registro',
             description: error.message,
         });
       }
@@ -127,6 +116,7 @@ export default function SignupPage() {
   };
 
   const handleGoogleSignup = async () => {
+    if (!auth) return;
     const provider = new GoogleAuthProvider();
     try {
       const result = await signInWithPopup(auth, provider);
@@ -135,19 +125,15 @@ export default function SignupPage() {
       await setupUserAndFamilyIfNeeded(user);
       
       toast({
-        title: "Signed In",
-        description: "Welcome to Memora!",
+        title: "Sesión Iniciada",
+        description: "¡Bienvenido/a a Memora!",
       });
       router.push('/dashboard');
     } catch (error: any) {
-       // The FirestorePermissionError is handled within setupUserAndFamilyIfNeeded
-       if (error.name === 'FirebaseError' && error.request) {
-         return;
-       }
        console.error("Google Signup Error:", error);
        toast({
          variant: 'destructive',
-         title: 'Google Sign-In Failed',
+         title: 'Fallo en el inicio con Google',
          description: error.message,
        });
     }
@@ -156,21 +142,30 @@ export default function SignupPage() {
   return (
     <Card className="mx-auto max-w-sm w-full">
       <CardHeader>
-        <CardTitle className="text-xl font-headline">Sign Up for Memora</CardTitle>
+        <CardTitle className="text-xl font-headline">Regístrate en Memora</CardTitle>
         <CardDescription>
-          Enter your information to create an account and start preserving your family's history.
+          Ingresa tu información para crear una cuenta y empezar a preservar la historia de tu familia.
         </CardDescription>
       </CardHeader>
       <CardContent>
         <div className="grid gap-4">
           <div className="grid gap-2">
-            <Label htmlFor="display-name">Display Name</Label>
+            <Label htmlFor="display-name">Tu Nombre</Label>
             <Input 
               id="display-name" 
-              placeholder="John Doe" 
+              placeholder="Ej: Juan Pérez" 
               required 
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
+            />
+          </div>
+           <div className="grid gap-2">
+            <Label htmlFor="family-name">Nombre de la Familia (Opcional)</Label>
+            <Input 
+              id="family-name" 
+              placeholder="Ej: Familia Pérez" 
+              value={familyName}
+              onChange={(e) => setFamilyName(e.target.value)}
             />
           </div>
           <div className="grid gap-2">
@@ -178,14 +173,14 @@ export default function SignupPage() {
             <Input
               id="email"
               type="email"
-              placeholder="m@example.com"
+              placeholder="tu@email.com"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />
           </div>
           <div className="grid gap-2">
-            <Label htmlFor="password">Password</Label>
+            <Label htmlFor="password">Contraseña</Label>
             <Input 
               id="password" 
               type="password" 
@@ -194,16 +189,16 @@ export default function SignupPage() {
             />
           </div>
           <Button onClick={handleSignup} type="submit" className="w-full">
-              Create an account
+              Crear una cuenta
           </Button>
           <Button onClick={handleGoogleSignup} variant="outline" className="w-full">
-            Sign up with Google
+            Registrarse con Google
           </Button>
         </div>
         <div className="mt-4 text-center text-sm">
-          Already have an account?{' '}
+          ¿Ya tienes una cuenta?{' '}
           <Link href="/login" className="underline">
-            Login
+            Iniciar sesión
           </Link>
         </div>
       </CardContent>

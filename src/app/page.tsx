@@ -1,3 +1,4 @@
+
 'use client';
 
 import Link from 'next/link';
@@ -22,10 +23,10 @@ export default function LandingPage() {
             href="/login"
             className="text-sm font-medium hover:underline underline-offset-4"
           >
-            Login
+            Iniciar Sesión
           </Link>
           <Button asChild>
-            <Link href="/signup">Get Started</Link>
+            <Link href="/signup">Empezar Gratis</Link>
           </Button>
         </nav>
       </header>
@@ -35,7 +36,7 @@ export default function LandingPage() {
             <div className="grid gap-6 lg:grid-cols-[1fr_400px] lg:gap-12 xl:grid-cols-[1fr_600px]">
                <Image
                 src={storyImage('story-1')}
-                alt="Family Photo"
+                alt="Foto Familiar"
                 width={600}
                 height={400}
                 className="mx-auto aspect-video overflow-hidden rounded-xl object-cover sm:w-full lg:order-last"
@@ -44,16 +45,16 @@ export default function LandingPage() {
               <div className="flex flex-col justify-center space-y-4">
                 <div className="space-y-2">
                   <h1 className="text-4xl font-bold tracking-tighter sm:text-5xl xl:text-6xl/none font-headline">
-                    Preserve Your Family's Legacy, One Story at a Time
+                    Preserva el Legado de tu Familia, una Historia a la Vez
                   </h1>
                   <p className="max-w-[600px] text-muted-foreground md:text-xl">
-                    Memora helps you capture, store, and relive your family's most precious moments. Turn audio recordings into timeless stories, animate photos, and bring your history to life.
+                    Memora te ayuda a capturar, guardar y revivir los momentos más preciados de tu familia. Convierte grabaciones de audio en historias eternas, anima fotos y da vida a tu historia.
                   </p>
                 </div>
                 <div className="flex flex-col gap-2 min-[400px]:flex-row">
                   <Button asChild size="lg">
                     <Link href="/signup">
-                      Start Your Free Archive
+                      Comienza tu Archivo Gratis
                       <ArrowRight className="ml-2" />
                     </Link>
                   </Button>
@@ -66,10 +67,10 @@ export default function LandingPage() {
           <div className="container px-4 md:px-6">
             <div className="flex flex-col items-center justify-center space-y-4 text-center">
               <div className="space-y-2">
-                <div className="inline-block rounded-lg bg-muted px-3 py-1 text-sm">Key Features</div>
-                <h2 className="text-3xl font-bold tracking-tighter sm:text-5xl font-headline">How Memora Works</h2>
+                <div className="inline-block rounded-lg bg-muted px-3 py-1 text-sm">Funcionalidades Clave</div>
+                <h2 className="text-3xl font-bold tracking-tighter sm:text-5xl font-headline">Cómo Funciona Memora</h2>
                 <p className="max-w-[900px] text-muted-foreground md:text-xl/relaxed lg:text-base/relaxed xl:text-xl/relaxed">
-                  From a simple audio recording to an interactive family heirloom. Our technology makes it easy to safeguard your memories for generations to come.
+                  Desde una simple grabación de voz a una reliquia familiar interactiva. Nuestra tecnología facilita la protección de tus recuerdos para las generaciones venideras.
                 </p>
               </div>
             </div>
@@ -77,28 +78,28 @@ export default function LandingPage() {
               <Card>
                 <CardHeader className="text-center">
                   <BookOpen className="h-10 w-10 mx-auto text-primary" />
-                  <CardTitle className="font-headline mt-4">Record & Upload</CardTitle>
+                  <CardTitle className="font-headline mt-4">Graba y Sube</CardTitle>
                 </CardHeader>
                 <CardContent className="text-center text-sm text-muted-foreground">
-                  Easily upload audio files of your family members sharing their stories and memories. Or record directly in the app.
+                  Sube fácilmente archivos de audio de tus familiares compartiendo sus historias y recuerdos. O graba directamente en la app.
                 </CardContent>
               </Card>
               <Card>
                 <CardHeader className="text-center">
                   <Bot className="h-10 w-10 mx-auto text-primary" />
-                  <CardTitle className="font-headline mt-4">AI-Powered Transcription</CardTitle>
+                  <CardTitle className="font-headline mt-4">Transcripción con IA</CardTitle>
                 </CardHeader>
                 <CardContent className="text-center text-sm text-muted-foreground">
-                  Our advanced AI automatically transcribes the audio, turning spoken words into a beautifully formatted and editable story.
+                  Nuestra IA avanzada transcribe automáticamente el audio, convirtiendo las palabras habladas en una historia bellamente formateada y editable.
                 </CardContent>
               </Card>
                <Card>
                 <CardHeader className="text-center">
                   <Clapperboard className="h-10 w-10 mx-auto text-primary" />
-                  <CardTitle className="font-headline mt-4">Animate Photos</CardTitle>
+                  <CardTitle className="font-headline mt-4">Anima Fotos</CardTitle>
                 </CardHeader>
                 <CardContent className="text-center text-sm text-muted-foreground">
-                  Bring still photos to life. Our premium AI feature animates faces in your old pictures, adding a magical touch to your stories.
+                  Da vida a las fotos fijas. Nuestra función premium de IA anima los rostros en tus fotos antiguas, añadiendo un toque mágico a tus historias.
                 </CardContent>
               </Card>
             </div>
@@ -108,21 +109,21 @@ export default function LandingPage() {
           <div className="container grid items-center justify-center gap-4 px-4 text-center md:px-6">
             <div className="space-y-3">
               <h2 className="text-3xl font-bold tracking-tighter md:text-4xl/tight font-headline">
-                Ready to start building your family's digital legacy?
+                ¿Listo para construir el legado digital de tu familia?
               </h2>
               <p className="mx-auto max-w-[600px] text-muted-foreground md:text-xl/relaxed lg:text-base/relaxed xl:text-xl/relaxed">
-                Create an account today and get started for free. Preserve your first stories and see your family's history in a new light.
+                Crea una cuenta hoy y empieza gratis. Preserva tus primeras historias y ve la historia de tu familia bajo una nueva luz.
               </p>
             </div>
             <div className="mx-auto w-full max-w-sm space-x-2">
                 <Button asChild size="lg">
                     <Link href="/signup">
-                        Sign Up Now
+                        Regístrate Ahora
                     </Link>
                 </Button>
                  <Button asChild size="lg" variant="outline">
                     <Link href="/login">
-                        Login
+                        Iniciar Sesión
                     </Link>
                 </Button>
             </div>
@@ -130,7 +131,7 @@ export default function LandingPage() {
         </section>
       </main>
       <footer className="flex flex-col gap-2 sm:flex-row py-6 w-full shrink-0 items-center px-4 md:px-6 border-t">
-        <p className="text-xs text-muted-foreground">&copy; {new Date().getFullYear()} Memora. All rights reserved.</p>
+        <p className="text-xs text-muted-foreground">&copy; {new Date().getFullYear()} Memora. Todos los derechos reservados.</p>
       </footer>
     </div>
   );

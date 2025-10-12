@@ -21,17 +21,18 @@ import {
   Gem,
   Settings,
   LogOut,
+  User,
 } from 'lucide-react';
 import { useAuth } from '@/firebase';
 import { signOut } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
 
 const navItems = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/stories', label: 'Stories', icon: BookText },
-  { href: '/devices', label: 'Devices', icon: RadioTower },
-  { href: '/family', label: 'Family', icon: Users },
-  { href: '/subscription', label: 'Subscription', icon: Gem },
+  { href: '/dashboard', label: 'Panel', icon: LayoutDashboard },
+  { href: '/stories', label: 'Historias', icon: BookText },
+  { href: '/devices', label: 'Dispositivos', icon: RadioTower },
+  { href: '/family', label: 'Familia', icon: Users },
+  { href: '/subscription', label: 'Suscripción', icon: Gem },
 ];
 
 export function AppSidebar() {
@@ -40,10 +41,11 @@ export function AppSidebar() {
   const router = useRouter();
 
   const isActive = (href: string) => {
-    return pathname === href;
+    return pathname.startsWith(href) && (href !== '/dashboard' || pathname === '/dashboard');
   };
 
   const handleLogout = async () => {
+    if (!auth) return;
     await signOut(auth);
     router.push('/login');
   };
@@ -77,18 +79,26 @@ export function AppSidebar() {
       <SidebarFooter>
         <SidebarSeparator />
         <SidebarMenu>
-          <SidebarMenuItem>
-             <SidebarMenuButton asChild tooltip="Settings">
-                <Link href="#">
-                  <Settings />
-                  <span>Settings</span>
+           <SidebarMenuItem>
+             <SidebarMenuButton asChild tooltip="Mi Perfil" isActive={isActive('/profile')}>
+                <Link href="/profile">
+                  <User />
+                  <span>Mi Perfil</span>
                 </Link>
               </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-              <SidebarMenuButton tooltip="Logout" onClick={handleLogout}>
+             <SidebarMenuButton asChild tooltip="Ajustes">
+                <Link href="#">
+                  <Settings />
+                  <span>Ajustes</span>
+                </Link>
+              </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+              <SidebarMenuButton tooltip="Cerrar Sesión" onClick={handleLogout}>
                 <LogOut />
-                <span>Logout</span>
+                <span>Cerrar Sesión</span>
               </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

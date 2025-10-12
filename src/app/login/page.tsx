@@ -26,19 +26,21 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
 
   const handleLogin = async () => {
+    if (!auth) return;
     try {
       await signInWithEmailAndPassword(auth, email, password);
       router.push('/dashboard');
     } catch (error: any) {
       toast({
         variant: 'destructive',
-        title: 'Login Failed',
-        description: error.message,
+        title: 'Fallo de Inicio de Sesión',
+        description: 'Email o contraseña incorrectos.',
       });
     }
   };
 
   const handleGoogleLogin = async () => {
+    if (!auth) return;
     const provider = new GoogleAuthProvider();
     try {
       await signInWithPopup(auth, provider);
@@ -49,7 +51,7 @@ export default function LoginPage() {
     } catch (error: any) {
       toast({
         variant: 'destructive',
-        title: 'Google Login Failed',
+        title: 'Fallo con Google',
         description: error.message,
       });
     }
@@ -59,9 +61,9 @@ export default function LoginPage() {
   return (
     <Card className="mx-auto max-w-sm w-full">
       <CardHeader>
-        <CardTitle className="text-2xl font-headline">Login to Memora</CardTitle>
+        <CardTitle className="text-2xl font-headline">Entrar a Memora</CardTitle>
         <CardDescription>
-          Enter your email below to login to your account
+          Introduce tu email para entrar a tu cuenta
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -71,7 +73,7 @@ export default function LoginPage() {
             <Input
               id="email"
               type="email"
-              placeholder="m@example.com"
+              placeholder="tu@email.com"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -79,9 +81,9 @@ export default function LoginPage() {
           </div>
           <div className="grid gap-2">
             <div className="flex items-center">
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="password">Contraseña</Label>
               <Link href="#" className="ml-auto inline-block text-sm underline">
-                Forgot your password?
+                ¿Olvidaste tu contraseña?
               </Link>
             </div>
             <Input 
@@ -93,16 +95,16 @@ export default function LoginPage() {
             />
           </div>
           <Button onClick={handleLogin} type="submit" className="w-full">
-              Login
+              Iniciar Sesión
           </Button>
           <Button onClick={handleGoogleLogin} variant="outline" className="w-full">
-            Login with Google
+            Iniciar Sesión con Google
           </Button>
         </div>
         <div className="mt-4 text-center text-sm">
-          Don&apos;t have an account?{' '}
+          ¿No tienes una cuenta?{' '}
           <Link href="/signup" className="underline">
-            Sign up
+            Regístrate
           </Link>
         </div>
       </CardContent>

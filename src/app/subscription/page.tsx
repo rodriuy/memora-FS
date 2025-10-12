@@ -14,7 +14,7 @@ export default function SubscriptionPage() {
 
     const familyId = userData?.familyId;
 
-    const familyDocRef = useMemoFirebase(() => familyId ? doc(firestore, 'families', familyId) : null, [firestore, familyId]);
+    const familyDocRef = useMemoFirebase(() => familyId && firestore ? doc(firestore, 'families', familyId) : null, [firestore, familyId]);
     const { data: familyData, isLoading: familyLoading } = useDoc(familyDocRef);
 
     const isPremium = familyData?.subscriptionTier === 'premium';
@@ -25,37 +25,37 @@ export default function SubscriptionPage() {
 
 
     const freePlanFeatures = [
-        "5 stories limit",
-        "20 photos limit",
-        "Standard audio transcription",
+        "Límite de 5 historias",
+        "Límite de 20 fotos",
+        "Transcripción de audio estándar",
     ];
 
     const premiumPlanFeatures = [
-        "Unlimited stories",
-        "Unlimited photos",
-        "AI-powered animated photos",
-        "Link physical Memora Boxes",
-        "Priority support",
+        "Historias ilimitadas",
+        "Fotos ilimitadas",
+        "Fotos animadas con IA",
+        "Vincular Cajas Memora físicas",
+        "Soporte prioritario",
     ];
 
     return (
         <div className="p-4 md:p-8">
             <div className="max-w-4xl mx-auto">
                 <h1 className="text-3xl font-bold tracking-tight font-headline mb-2">
-                    Subscription Plan
+                    Plan de Suscripción
                 </h1>
                 <p className="text-muted-foreground mb-8">
-                    Manage your plan and explore premium features to enhance your family's legacy.
+                    Gestiona tu plan y explora funciones premium para mejorar el legado de tu familia.
                 </p>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <Card className={`flex flex-col ${isPremium ? 'border-muted' : 'border-primary border-2'}`}>
                         <CardHeader>
-                            <CardTitle className="font-headline">Free Plan</CardTitle>
-                            <CardDescription>For getting started with preserving memories.</CardDescription>
+                            <CardTitle className="font-headline">Plan Gratuito</CardTitle>
+                            <CardDescription>Para empezar a preservar recuerdos.</CardDescription>
                         </CardHeader>
                         <CardContent className="flex-grow space-y-4">
-                            <p className="text-3xl font-bold">$0<span className="text-sm font-normal text-muted-foreground">/month</span></p>
+                            <p className="text-3xl font-bold">$0<span className="text-sm font-normal text-muted-foreground">/mes</span></p>
                             <ul className="space-y-2 text-sm">
                                 {freePlanFeatures.map(feat => (
                                      <li key={feat} className="flex items-center gap-2">
@@ -68,14 +68,14 @@ export default function SubscriptionPage() {
                                 <div className="space-y-4 pt-4">
                                     <div>
                                         <div className="flex justify-between text-sm mb-1">
-                                            <span>Stories</span>
+                                            <span>Historias</span>
                                             <span className="text-muted-foreground">{storiesUsage} / 5</span>
                                         </div>
                                         <Progress value={(storiesUsage / 5) * 100} />
                                     </div>
                                     <div>
                                         <div className="flex justify-between text-sm mb-1">
-                                            <span>Photos</span>
+                                            <span>Fotos</span>
                                             <span className="text-muted-foreground">{photosUsage} / 20</span>
                                         </div>
                                         <Progress value={(photosUsage / 20) * 100} />
@@ -85,7 +85,7 @@ export default function SubscriptionPage() {
                         </CardContent>
                         <CardFooter>
                             <Button variant="outline" className="w-full" disabled={!isPremium}>
-                                {isPremium ? 'Downgrade' : 'Current Plan'}
+                                {isPremium ? 'Bajar de plan' : 'Plan Actual'}
                             </Button>
                         </CardFooter>
                     </Card>
@@ -96,12 +96,12 @@ export default function SubscriptionPage() {
                          </div>
                         <CardHeader>
                             <CardTitle className="font-headline flex items-center gap-2">
-                                <Gem className="h-5 w-5 text-primary"/> Premium Plan
+                                <Gem className="h-5 w-5 text-primary"/> Plan Premium
                             </CardTitle>
-                            <CardDescription>Unlock the full potential of Memora.</CardDescription>
+                            <CardDescription>Desbloquea todo el potencial de Memora.</CardDescription>
                         </CardHeader>
                         <CardContent className="flex-grow space-y-4">
-                             <p className="text-3xl font-bold">$9.99<span className="text-sm font-normal text-muted-foreground">/month</span></p>
+                             <p className="text-3xl font-bold">$9.99<span className="text-sm font-normal text-muted-foreground">/mes</span></p>
                             <ul className="space-y-2 text-sm">
                                 {premiumPlanFeatures.map(feat => (
                                      <li key={feat} className="flex items-center gap-2">
@@ -113,7 +113,7 @@ export default function SubscriptionPage() {
                         </CardContent>
                         <CardFooter>
                              <Button className="w-full" disabled={isPremium}>
-                                {isPremium ? 'Current Plan' : 'Upgrade to Premium'}
+                                {isPremium ? 'Plan Actual' : 'Actualizar a Premium'}
                             </Button>
                         </CardFooter>
                     </Card>

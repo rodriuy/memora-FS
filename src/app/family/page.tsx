@@ -6,14 +6,25 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { PlaceHolderImages } from "@/lib/placeholder-images";
 import { Badge } from "@/components/ui/badge";
-import { PlusCircle, UserX } from "lucide-react";
-import { useUser, useFirestore, useDoc, useMemoFirebase, useCollection } from '@/firebase';
-import { doc, collection, query, where, documentId } from 'firebase/firestore';
+import { PlusCircle, UserX, Trash2 } from "lucide-react";
+import { useUser, useFirestore, useDoc, useMemoFirebase, useCollection, updateDocumentNonBlocking } from '@/firebase';
+import { doc, collection, query, where, documentId, arrayRemove } from 'firebase/firestore';
 import type { User as MemoraUser, Family } from '@/lib/types';
 import { Skeleton } from "@/components/ui/skeleton";
 
 function FamilyMembers({ familyData, familyMembers, familyMembersLoading }: { familyData: Family | null, familyMembers: MemoraUser[] | null, familyMembersLoading: boolean }) {
+    const { user: currentUser } = useUser();
+    const firestore = useFirestore();
     const userImage = (id: string) => PlaceHolderImages.find(p => p.id === id)?.imageUrl || '';
+
+    const handleRemoveMember = (memberId: string) => {
+        if (!firestore || !familyData) return;
+        const familyDocRef = doc(firestore, 'families', familyData.id);
+        updateDocumentNonBlocking(familyDocRef, {
+            memberIds: arrayRemove(memberId)
+        });
+        // Note: In a full app, you would also need to handle re-assigning the user to a new family or deleting them.
+    };
 
     if (familyMembersLoading) {
         return (
@@ -33,11 +44,13 @@ function FamilyMembers({ familyData, familyMembers, familyMembersLoading }: { fa
         return (
             <div className="text-center py-12 text-muted-foreground">
                 <UserX className="h-12 w-12 mx-auto mb-4" />
-                <p className="font-semibold">No Family Members Found</p>
-                <p className="text-sm">Use the "Invite Member" button to add people to your family circle.</p>
+                <p className="font-semibold">No se encontraron miembros de la familia</p>
+                <p className="text-sm">Usa el botón "Invitar Miembro" para añadir personas a tu círculo familiar.</p>
             </div>
         )
     }
+
+    const isAdmin = familyData?.adminId === currentUser?.uid;
 
     return (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
@@ -49,11 +62,15 @@ function FamilyMembers({ familyData, familyMembers, familyMembersLoading }: { fa
                     </Avatar>
                     <p className="font-semibold text-lg">{member.displayName}</p>
                     <Badge variant={familyData?.adminId === member.id ? 'default' : 'secondary'} className="mt-1">
-                        {familyData?.adminId === member.id ? 'Admin' : 'Member'}
+                        {familyData?.adminId === member.id ? 'Admin' : 'Miembro'}
                     </Badge>
                     <div className="mt-4 flex gap-2">
-                        <Button variant="outline" size="sm">View Stories</Button>
-                        <Button variant="ghost" size="sm">Remove</Button>
+                         {isAdmin && member.id !== currentUser?.uid && (
+                            <Button variant="ghost" size="sm" onClick={() => handleRemoveMember(member.id)}>
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Eliminar
+                            </Button>
+                        )}
                     </div>
                 </Card>
             ))}
@@ -68,7 +85,7 @@ export default function FamilyPage() {
 
     const familyId = userData?.familyId;
 
-    const familyDocRef = useMemoFirebase(() => familyId ? doc(firestore, 'families', familyId) : null, [firestore, familyId]);
+    const familyDocRef = useMemoFirebase(() => familyId && firestore ? doc(firestore, 'families', familyId) : null, [firestore, familyId]);
     const { data: familyData, isLoading: familyLoading } = useDoc<Family>(familyDocRef);
 
     const memberIds = familyData?.memberIds;
@@ -91,10 +108,10 @@ export default function FamilyPage() {
                 <CardHeader className="flex flex-row items-center justify-between">
                     <div>
                          {isLoading ? <Skeleton className="h-8 w-48 mb-2" /> : <CardTitle className="font-headline text-2xl">{familyData?.familyName}</CardTitle>}
-                         {isLoading ? <Skeleton className="h-5 w-64" /> : <CardDescription>Manage who is part of your family's Memora account.</CardDescription>}
+                         {isLoading ? <Skeleton className="h-5 w-64" /> : <CardDescription>Gestiona quién forma parte de la cuenta Memora de tu familia.</CardDescription>}
                     </div>
                     <Button>
-                        <PlusCircle className="mr-2 h-4 w-4" /> Invite Member
+                        <PlusCircle className="mr-2 h-4 w-4" /> Invitar Miembro
                     </Button>
                 </CardHeader>
                 <CardContent>
