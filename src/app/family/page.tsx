@@ -129,18 +129,18 @@ export default function FamilyPage() {
 
     const familyId = userData?.familyId;
 
-    const familyDocRef = useMemoFirebase(() => familyId && firestore ? doc(firestore, 'families', familyId) : null, [firestore, familyId]);
+    const familyDocRef = useMemoFirebase(() => {
+      if (!firestore || !familyId) return null;
+      return doc(firestore, 'families', familyId);
+    }, [firestore, familyId]);
     const { data: familyData, isLoading: familyLoading } = useDoc<Family>(familyDocRef);
 
     const memberIds = familyData?.memberIds;
     
-    const familyMembersQuery = useMemoFirebase(
-        () =>
-            firestore && memberIds && memberIds.length > 0
-                ? query(collection(firestore, 'users'), where(documentId(), 'in', memberIds))
-                : null,
-        [firestore, memberIds]
-    );
+    const familyMembersQuery = useMemoFirebase(() => {
+        if (!firestore || !memberIds || memberIds.length === 0) return null;
+        return query(collection(firestore, 'users'), where(documentId(), 'in', memberIds));
+    }, [firestore, memberIds]);
 
     const { data: familyMembers, isLoading: familyMembersLoading } = useCollection<MemoraUser>(familyMembersQuery);
 
@@ -170,3 +170,5 @@ export default function FamilyPage() {
         </div>
     );
 }
+
+    

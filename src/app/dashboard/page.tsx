@@ -24,8 +24,7 @@ import Image from 'next/image';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { useUser, useFirestore, useCollection, useDoc, useMemoFirebase } from '@/firebase';
 import { collection, query, where, doc, documentId } from 'firebase/firestore';
-import type { Story } from '@/lib/types';
-import type { User as MemoraUser, Family } from '@/lib/types';
+import type { Story, Device, User as MemoraUser, Family } from '@/lib/types';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -37,24 +36,30 @@ export default function Dashboard() {
 
   const familyId = userData?.familyId;
 
-  const storiesQuery = useMemoFirebase(() => familyId ? query(collection(firestore, 'families', familyId, 'stories')) : null, [firestore, familyId]);
+  const storiesQuery = useMemoFirebase(() => {
+    if (!firestore || !familyId) return null;
+    return query(collection(firestore, 'families', familyId, 'stories'));
+  }, [firestore, familyId]);
   const { data: stories, isLoading: storiesLoading } = useCollection<Story>(storiesQuery);
 
-  const devicesQuery = useMemoFirebase(() => familyId ? query(collection(firestore, 'families', familyId, 'memoraBoxes')) : null, [firestore, familyId]);
+  const devicesQuery = useMemoFirebase(() => {
+    if (!firestore || !familyId) return null;
+    return query(collection(firestore, 'families', familyId, 'memoraBoxes'));
+  }, [firestore, familyId]);
   const { data: devices, isLoading: devicesLoading } = useCollection<Device>(devicesQuery);
 
-  const familyDocRef = useMemoFirebase(() => familyId ? doc(firestore, 'families', familyId) : null, [firestore, familyId]);
+  const familyDocRef = useMemoFirebase(() => {
+    if (!firestore || !familyId) return null;
+    return doc(firestore, 'families', familyId);
+  }, [firestore, familyId]);
   const { data: familyData, isLoading: familyLoading } = useDoc<Family>(familyDocRef);
   
   const memberIds = familyData?.memberIds;
 
-  const familyMembersQuery = useMemoFirebase(
-    () =>
-      firestore && memberIds && memberIds.length > 0
-        ? query(collection(firestore, 'users'), where(documentId(), 'in', memberIds))
-        : null,
-    [firestore, memberIds]
-  );
+  const familyMembersQuery = useMemoFirebase(() => {
+    if (!firestore || !memberIds || memberIds.length === 0) return null;
+    return query(collection(firestore, 'users'), where(documentId(), 'in', memberIds));
+  }, [firestore, memberIds]);
   const { data: familyMembers, isLoading: familyMembersLoading } = useCollection<MemoraUser>(familyMembersQuery);
 
   const recentStories = stories ? stories.slice(0, 3) : [];
@@ -274,3 +279,5 @@ export default function Dashboard() {
     </div>
   );
 }
+
+    

@@ -25,7 +25,10 @@ import {
 
     const familyId = userData?.familyId;
 
-    const storiesQuery = useMemoFirebase(() => familyId ? query(collection(firestore, 'families', familyId, 'stories')) : null, [firestore, familyId]);
+    const storiesQuery = useMemoFirebase(() => {
+      if (!firestore || !familyId) return null;
+      return query(collection(firestore, 'families', familyId, 'stories'));
+    }, [firestore, familyId]);
     const { data: stories, isLoading: storiesLoading } = useCollection<Story>(storiesQuery);
 
     const storyImage = (id: string) => PlaceHolderImages.find(p => p.id === id)?.imageUrl || 'https://picsum.photos/seed/placeholder/64/64';
@@ -96,5 +99,6 @@ import {
     )
   }
   
+    
 
     

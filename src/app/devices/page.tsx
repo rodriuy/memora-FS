@@ -23,7 +23,10 @@ export default function DevicesPage() {
 
     const familyId = userData?.familyId;
     
-    const devicesQuery = useMemoFirebase(() => familyId && firestore ? collection(firestore, 'families', familyId, 'memoraBoxes') : null, [firestore, familyId]);
+    const devicesQuery = useMemoFirebase(() => {
+        if (!firestore || !familyId) return null;
+        return collection(firestore, 'families', familyId, 'memoraBoxes');
+    }, [firestore, familyId]);
     const { data: devices, isLoading: devicesLoading } = useCollection<Device>(devicesQuery);
 
     const handlePairDevice = async () => {
@@ -141,3 +144,5 @@ export default function DevicesPage() {
         </div>
     );
 }
+
+    
