@@ -15,7 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { useAuth, useFirestore } from '@/firebase';
+import { useAuth, useFirestore, errorEmitter, FirestorePermissionError } from '@/firebase';
 import { createUserWithEmailAndPassword, updateProfile, GoogleAuthProvider, signInWithPopup, type User as FirebaseUser } from 'firebase/auth';
 import { doc, getDoc, collection, serverTimestamp, writeBatch } from 'firebase/firestore';
 
@@ -39,10 +39,8 @@ export default function SignupPage() {
       return;
     }
 
-    // Use a batch write to create family and user docs atomically
     const batch = writeBatch(firestore);
 
-    // 1. Define the family document reference and data
     const familyRef = doc(collection(firestore, 'families'));
     const familyData = {
       adminId: user.uid,
@@ -53,7 +51,6 @@ export default function SignupPage() {
     };
     batch.set(familyRef, familyData);
 
-    // 2. Define the user document data, now with the familyId
     const userData = {
         userId: user.uid,
         email: user.email,
@@ -63,10 +60,22 @@ export default function SignupPage() {
     };
     batch.set(userRef, userData);
     
-    // 3. Commit the batch
-    // This is an await because it's part of the critical signup flow.
-    // Errors here should be caught by the calling function.
-    await batch.commit();
+    // The batch write is a critical part of signup, so we await it.
+    // The catch block will now handle permission errors specifically.
+    await batch.commit().catch((error) => {
+        // This is a simplified context for a batch write.
+        // We will report the error on the user creation as it's a key part.
+        const permissionError = new FirestorePermissionError({
+            path: userRef.path,
+            operation: 'create',
+            requestResourceData: userData,
+        });
+        errorEmitter.emit('permission-error', permissionError);
+
+        // Also re-throw the original error to be caught by the outer try/catch
+        // so the user still gets a toast notification.
+        throw error;
+    });
   };
 
 
@@ -93,6 +102,13 @@ export default function SignupPage() {
       
       router.push('/dashboard');
     } catch (error: any) {
+      // The FirestorePermissionError is already emitted, so we just handle UI feedback.
+      if (error.name === 'FirebaseError' && error.request) {
+         // This is our custom error, we can just let the global listener handle it
+         // but we prevent the generic toast.
+         return;
+      }
+
       if (error.code === 'auth/email-already-in-use') {
         toast({
           variant: 'destructive',
@@ -124,6 +140,10 @@ export default function SignupPage() {
       });
       router.push('/dashboard');
     } catch (error: any) {
+       // The FirestorePermissionError is handled within setupUserAndFamilyIfNeeded
+       if (error.name === 'FirebaseError' && error.request) {
+         return;
+       }
        console.error("Google Signup Error:", error);
        toast({
          variant: 'destructive',
