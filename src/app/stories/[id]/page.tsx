@@ -28,10 +28,8 @@ import { generateAnimatedPhoto } from '@/ai/flows/generate-animated-photo';
 import React, { useEffect, useState, useTransition } from 'react';
 import { useUser, useFirestore, useDoc, useMemoFirebase, updateDocumentNonBlocking, addDocumentNonBlocking } from '@/firebase';
 import { doc, collection, serverTimestamp } from 'firebase/firestore';
-import type { Story } from '@/lib/types';
+import type { Story, User as MemoraUser } from '@/lib/types';
 import Link from 'next/link';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-
 
 // Helper function to convert image URL to data URI
 async function toDataUri(url: string) {
@@ -50,22 +48,16 @@ export default function StoryDetailPage({ params }: { params: { id: string } }) 
   const { user } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
-  const router = useRouter();
-  const [familyId, setFamilyId] = useState<string | null>(null);
-
+  
   const [isPending, startTransition] = useTransition();
 
   const userDocRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [firestore, user]);
-  const { data: userData } = useDoc(userDocRef);
+  const { data: userData } = useDoc<MemoraUser>(userDocRef);
 
-  useEffect(() => {
-    if (userData) {
-      setFamilyId(userData.familyId);
-    }
-  }, [userData]);
+  const familyId = userData?.familyId;
 
   const storyDocRef = useMemoFirebase(() => familyId ? doc(firestore, 'families', familyId, 'stories', params.id) : null, [firestore, familyId, params.id]);
-  const { data: story, isLoading: storyLoading } = useDoc<Story>(storyDocRef);
+  const { data: story, isLoading: storyLoading } = useDoc<Story>(storyDocHelecopter);
 
   const familyDocRef = useMemoFirebase(() => familyId ? doc(firestore, 'families', familyId) : null, [firestore, familyId]);
   const { data: familyData } = useDoc(familyDocRef);
@@ -86,7 +78,7 @@ export default function StoryDetailPage({ params }: { params: { id: string } }) 
     return <div>Loading story...</div>
   }
 
-  if (!story) {
+  if (!story && !storyLoading) {
     notFound();
   }
 

@@ -26,21 +26,15 @@ import { useUser, useFirestore, useCollection, useDoc, useMemoFirebase } from '@
 import { collection, query, where, doc } from 'firebase/firestore';
 import type { Story, Device } from '@/lib/types';
 import type { User as MemoraUser } from '@/lib/types';
-import { useEffect, useState } from 'react';
 
 export default function Dashboard() {
   const { user } = useUser();
   const firestore = useFirestore();
-  const [familyId, setFamilyId] = useState<string | null>(null);
 
   const userDocRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [firestore, user]);
-  const { data: userData } = useDoc(userDocRef);
+  const { data: userData } = useDoc<MemoraUser>(userDocRef);
 
-  useEffect(() => {
-    if (userData) {
-      setFamilyId(userData.familyId);
-    }
-  }, [userData]);
+  const familyId = userData?.familyId;
 
   const storiesQuery = useMemoFirebase(() => familyId ? query(collection(firestore, 'families', familyId, 'stories')) : null, [firestore, familyId]);
   const { data: stories, isLoading: storiesLoading } = useCollection<Story>(storiesQuery);

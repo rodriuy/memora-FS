@@ -7,21 +7,16 @@ import { Progress } from "@/components/ui/progress";
 import { CheckCircle, Gem, Star } from "lucide-react";
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
-import { useState, useEffect } from 'react';
+import type { User as MemoraUser } from '@/lib/types';
 
 export default function SubscriptionPage() {
     const { user } = useUser();
     const firestore = useFirestore();
-    const [familyId, setFamilyId] = useState<string | null>(null);
 
     const userDocRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [firestore, user]);
-    const { data: userData } = useDoc(userDocRef);
+    const { data: userData } = useDoc<MemoraUser>(userDocRef);
 
-    useEffect(() => {
-        if (userData) {
-            setFamilyId(userData.familyId);
-        }
-    }, [userData]);
+    const familyId = userData?.familyId;
 
     const familyDocRef = useMemoFirebase(() => familyId ? doc(firestore, 'families', familyId) : null, [firestore, familyId]);
     const { data: familyData, isLoading: familyLoading } = useDoc(familyDocRef);
@@ -131,4 +126,3 @@ export default function SubscriptionPage() {
         </div>
     );
 }
-

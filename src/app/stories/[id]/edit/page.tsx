@@ -17,7 +17,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { useUser, useFirestore, useDoc, useMemoFirebase, updateDocumentNonBlocking } from '@/firebase';
 import { doc } from 'firebase/firestore';
-import type { Story } from '@/lib/types';
+import type { Story, User as MemoraUser } from '@/lib/types';
 import { BrainCircuit, CheckCircle, Hourglass, Save } from 'lucide-react';
 import { useRouter, notFound } from 'next/navigation';
 
@@ -27,20 +27,15 @@ export default function EditStoryPage({ params }: { params: { id: string } }) {
   const router = useRouter();
   const { toast } = useToast();
   
-  const [familyId, setFamilyId] = useState<string | null>(null);
   const [title, setTitle] = useState('');
   const [narrator, setNarrator] = useState('');
   const [transcription, setTranscription] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
   const userDocRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [firestore, user]);
-  const { data: userData } = useDoc(userDocRef);
+  const { data: userData } = useDoc<MemoraUser>(userDocRef);
 
-  useEffect(() => {
-    if (userData) {
-      setFamilyId(userData.familyId);
-    }
-  }, [userData]);
+  const familyId = userData?.familyId;
 
   const storyDocRef = useMemoFirebase(() => familyId ? doc(firestore, 'families', familyId, 'stories', params.id) : null, [firestore, familyId, params.id]);
   const { data: story, isLoading: storyLoading } = useDoc<Story>(storyDocRef);

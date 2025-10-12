@@ -1,19 +1,17 @@
 
 'use client';
 
-import { useState, useEffect, useTransition } from 'react';
+import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
 import { Upload, Mic, FileAudio, BrainCircuit } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -21,6 +19,7 @@ import { useUser, useFirestore, useDoc, useMemoFirebase, addDocumentNonBlocking,
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { collection, doc, serverTimestamp } from 'firebase/firestore';
 import { transcribeAudioStory } from '@/ai/flows/transcribe-audio-story';
+import type { User as MemoraUser } from '@/lib/types';
 
 type Status = 'idle' | 'uploading' | 'transcribing' | 'complete';
 
@@ -33,17 +32,12 @@ export default function NewStoryPage() {
   const [status, setStatus] = useState<Status>('idle');
   const [progress, setProgress] = useState(0);
   const [fileName, setFileName] = useState('');
-  const [familyId, setFamilyId] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const userDocRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [firestore, user]);
-  const { data: userData } = useDoc(userDocRef);
+  const { data: userData } = useDoc<MemoraUser>(userDocRef);
 
-  useEffect(() => {
-    if (userData) {
-      setFamilyId(userData.familyId);
-    }
-  }, [userData]);
+  const familyId = userData?.familyId;
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -60,7 +54,7 @@ export default function NewStoryPage() {
     try {
         // 1. Create a new story document in Firestore to get an ID
         const storiesRef = collection(firestore, 'families', familyId, 'stories');
-        const newStoryDoc = await addDocumentNonBlocking(storiesRef, {
+        const newStoryDocRef = await addDocumentNonBlocking(storiesRef, {
             title: 'New Story', // Placeholder title
             narrator: 'Unknown',
             transcription: '',
@@ -70,11 +64,15 @@ export default function NewStoryPage() {
             imageId: `story-${Math.floor(Math.random() * 4) + 1}`,
             createdAt: serverTimestamp()
         });
-        storyId = newStoryDoc.id;
+        storyId = newStoryDocRef.id;
 
         // 2. Upload the file to Firebase Storage
         const storage = getStorage();
+        // Construct gs:// URI for Genkit
+        const bucket = `${firebaseConfig.projectId}.appspot.com`;
         const storagePath = `audio/${familyId}/${storyId}/${file.name}`;
+        const gsUri = `gs://${bucket}/${storagePath}`;
+
         const storageRef = ref(storage, storagePath);
         const uploadTask = uploadBytesResumable(storageRef, file);
 
@@ -107,9 +105,9 @@ export default function NewStoryPage() {
                 description: "Your story is now being transcribed by our AI.",
               });
 
-              // 5. Call Genkit flow for transcription
+              // 5. Call Genkit flow for transcription using the gs:// URI
               try {
-                const { transcription } = await transcribeAudioStory({ audioUrl: downloadURL });
+                const { transcription } = await transcribeAudioStory({ audioUrl: gsUri });
                 
                 // 6. Update document with transcription and final status
                 updateDocumentNonBlocking(storyDocRef, {

@@ -6,7 +6,7 @@ export type Story = {
   narrator: string;
   audioUrl: string;
   transcription: string;
-  status: 'completed' | 'transcribing' | 'uploading';
+  status: 'completed' | 'transcribing' | 'uploading' | 'failed';
   imageId?: string;
   isDonated: boolean;
   createdAt: any; // Firestore Timestamp

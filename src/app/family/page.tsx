@@ -10,21 +10,15 @@ import { PlusCircle } from "lucide-react";
 import { useUser, useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase';
 import { doc, collection, query, where } from 'firebase/firestore';
 import type { User as MemoraUser } from '@/lib/types';
-import { useState, useEffect } from 'react';
 
 export default function FamilyPage() {
     const { user } = useUser();
     const firestore = useFirestore();
-    const [familyId, setFamilyId] = useState<string | null>(null);
 
     const userDocRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [firestore, user]);
-    const { data: userData } = useDoc(userDocRef);
+    const { data: userData } = useDoc<MemoraUser>(userDocRef);
 
-    useEffect(() => {
-        if (userData) {
-            setFamilyId(userData.familyId);
-        }
-    }, [userData]);
+    const familyId = userData?.familyId;
 
     const familyDocRef = useMemoFirebase(() => familyId ? doc(firestore, 'families', familyId) : null, [firestore, familyId]);
     const { data: familyData } = useDoc(familyDocRef);

@@ -7,28 +7,23 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Gem, RadioTower } from "lucide-react";
-import { useUser, useFirestore, useCollection, useDoc, useMemoFirebase, updateDocumentNonBlocking } from '@/firebase';
-import { collection, query, where, doc, getDocs } from 'firebase/firestore';
-import type { Device } from '@/lib/types';
-import { useState, useEffect } from 'react';
+import { useUser, useFirestore, useCollection, useDoc, useMemoFirebase } from '@/firebase';
+import { collection, query, where, doc, getDocs, updateDoc } from 'firebase/firestore';
+import type { Device, User as MemoraUser } from '@/lib/types';
+import { useState } from 'react';
 import { useToast } from "@/hooks/use-toast";
 
 export default function DevicesPage() {
     const { user } = useUser();
     const { toast } = useToast();
     const firestore = useFirestore();
-    const [familyId, setFamilyId] = useState<string | null>(null);
     const [pairingCode, setPairingCode] = useState('');
     const [isPairing, setIsPairing] = useState(false);
 
     const userDocRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [firestore, user]);
-    const { data: userData } = useDoc(userDocRef);
+    const { data: userData } = useDoc<MemoraUser>(userDocRef);
 
-    useEffect(() => {
-        if (userData) {
-            setFamilyId(userData.familyId);
-        }
-    }, [userData]);
+    const familyId = userData?.familyId;
     
     const familyDocRef = useMemoFirebase(() => familyId ? doc(firestore, 'families', familyId) : null, [firestore, familyId]);
     const { data: familyData } = useDoc(familyDocRef);
@@ -56,9 +51,9 @@ export default function DevicesPage() {
             }
 
             const boxDoc = querySnapshot.docs[0];
-            const boxDocRef = doc(firestore, 'memoraBoxes', boxDoc.id);
-
-            updateDocumentNonBlocking(boxDocRef, {
+            
+            // Using await here as this is a user-initiated action where feedback is immediate.
+            await updateDoc(boxDoc.ref, {
                 familyId: familyId,
                 status: 'active'
             });
