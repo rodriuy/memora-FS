@@ -68,7 +68,7 @@ export default function Dashboard() {
     }
   }, [user, isUserLoading, router]);
 
-  const isLoading = isUserLoading || familyMembersLoading || storiesLoading || devicesLoading || familyLoading;
+  const isLoading = isUserLoading || familyLoading;
 
   if (isLoading) {
       return (
@@ -116,7 +116,7 @@ export default function Dashboard() {
             <BookText className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stories?.length || 0}</div>
+            {storiesLoading ? <Skeleton className="h-8 w-12" /> : <div className="text-2xl font-bold">{stories?.length || 0}</div>}
             <p className="text-xs text-muted-foreground">
               Preserving your family's legacy
             </p>
@@ -130,7 +130,7 @@ export default function Dashboard() {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{familyMembers?.length || 0}</div>
+            {familyMembersLoading ? <Skeleton className="h-8 w-12" /> : <div className="text-2xl font-bold">{familyMembers?.length || 0}</div>}
             <p className="text-xs text-muted-foreground">
               Connected and sharing memories
             </p>
@@ -144,7 +144,7 @@ export default function Dashboard() {
             <RadioTower className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{devices?.length || 0}</div>
+            {devicesLoading ? <Skeleton className="h-8 w-12" /> : <div className="text-2xl font-bold">{devices?.length || 0}</div>}
             <p className="text-xs text-muted-foreground">
               Memora Boxes bringing stories to life
             </p>
@@ -161,7 +161,14 @@ export default function Dashboard() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            {recentStories.map((story, index) => (
+            {storiesLoading ? (
+                 <div className="space-y-4">
+                    <Skeleton className="h-24 w-full" />
+                    <Skeleton className="h-24 w-full" />
+                    <Skeleton className="h-24 w-full" />
+                 </div>
+            ) : recentStories.length > 0 ? (
+              recentStories.map((story, index) => (
               <div key={story.id}>
                 <div className="flex items-center space-x-4">
                   <div className="relative h-24 w-24 md:h-28 md:w-40 flex-shrink-0">
@@ -205,8 +212,10 @@ export default function Dashboard() {
                   <Separator className="my-4" />
                 )}
               </div>
-            ))}
-             {recentStories.length === 0 && <p className="text-center text-muted-foreground">No stories yet. Add one!</p>}
+            ))
+            ) : (
+                <p className="text-center text-muted-foreground">No stories yet. Add one!</p>
+            )}
           </CardContent>
         </Card>
 
@@ -218,34 +227,43 @@ export default function Dashboard() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {familyMembers?.map((member, index) => (
-              <div key={member.id}>
-                <div className="flex items-center justify-between space-x-4">
-                  <div className="flex items-center space-x-4">
-                    <Avatar>
-                      <AvatarImage src={userImage(member.avatarId || 'user-1')} />
-                      <AvatarFallback>
-                        {member.displayName?.charAt(0)}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <p className="text-sm font-medium leading-none">
-                        {member.displayName}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {familyData?.adminId === member.id ? 'Admin' : 'Member'}
-                      </p>
-                    </div>
-                  </div>
-                  <Button variant="outline" size="sm">
-                    View
-                  </Button>
+           {familyMembersLoading ? (
+                <div className="space-y-4">
+                    <Skeleton className="h-16 w-full" />
+                    <Skeleton className="h-16 w-full" />
                 </div>
-                {index < (familyMembers?.length || 0) - 1 && (
-                  <Separator className="my-4" />
-                )}
-              </div>
-            ))}
+           ) : familyMembers && familyMembers.length > 0 ? (
+                familyMembers.map((member, index) => (
+                    <div key={member.id}>
+                        <div className="flex items-center justify-between space-x-4">
+                        <div className="flex items-center space-x-4">
+                            <Avatar>
+                            <AvatarImage src={userImage(member.avatarId || 'user-1')} />
+                            <AvatarFallback>
+                                {member.displayName?.charAt(0)}
+                            </AvatarFallback>
+                            </Avatar>
+                            <div>
+                            <p className="text-sm font-medium leading-none">
+                                {member.displayName}
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                                {familyData?.adminId === member.id ? 'Admin' : 'Member'}
+                            </p>
+                            </div>
+                        </div>
+                        <Button variant="outline" size="sm">
+                            View
+                        </Button>
+                        </div>
+                        {index < (familyMembers?.length || 0) - 1 && (
+                        <Separator className="my-4" />
+                        )}
+                    </div>
+                    ))
+            ) : (
+                <p className="text-center text-muted-foreground">No family members found.</p>
+            )}
           </CardContent>
         </Card>
       </div>

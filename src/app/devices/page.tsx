@@ -12,6 +12,7 @@ import { collection, query, where, doc, getDocs, updateDoc } from 'firebase/fire
 import type { Device } from '@/lib/types';
 import { useState } from 'react';
 import { useToast } from "@/hooks/use-toast";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function DevicesPage() {
     const { userData } = useUser();
@@ -23,10 +24,9 @@ export default function DevicesPage() {
     const familyId = userData?.familyId;
     
     const familyDocRef = useMemoFirebase(() => familyId ? doc(firestore, 'families', familyId) : null, [firestore, familyId]);
-    const { data: familyData } = useDoc(familyDocRef);
+    const { data: familyData, isLoading: familyLoading } = useDoc(familyDocRef);
     const isPremium = familyData?.subscriptionTier === 'premium';
 
-    // Updated query to look inside the family's subcollection
     const devicesQuery = useMemoFirebase(() => familyId ? collection(firestore, 'families', familyId, 'memoraBoxes') : null, [firestore, familyId]);
     const { data: devices, isLoading: devicesLoading } = useCollection<Device>(devicesQuery);
 
@@ -38,9 +38,6 @@ export default function DevicesPage() {
 
         setIsPairing(true);
         try {
-            // Pairing logic now needs to check a global collection of pending boxes
-            // This part of the logic is simplified for this fix, assuming a 'pendingMemoraBoxes' collection
-            // In a real app, this might be a more complex transactional process
             const pendingBoxesRef = collection(firestore, 'pendingMemoraBoxes');
             const q = query(pendingBoxesRef, where('pairingCode', '==', pairingCode));
             const querySnapshot = await getDocs(q);
@@ -54,17 +51,13 @@ export default function DevicesPage() {
             const pendingBoxDoc = querySnapshot.docs[0];
             const boxData = pendingBoxDoc.data();
 
-            // Instead of updating, we now create a new doc in the subcollection and delete the pending one
             const newBoxRef = doc(firestore, 'families', familyId, 'memoraBoxes', pendingBoxDoc.id);
             
-            // Using await here as this is a user-initiated action where feedback is immediate.
             await updateDoc(newBoxRef, {
                 familyId: familyId,
                 status: 'active',
                 boxId: boxData.boxId
             });
-
-            // In a real app, you would delete the pendingBoxDoc here.
 
             toast({ title: 'Device Paired!', description: `Your Memora Box is now linked to ${familyData?.familyName}.` });
             setPairingCode('');
@@ -98,18 +91,31 @@ export default function DevicesPage() {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {devicesLoading && <TableRow><TableCell colSpan={2}>Loading devices...</TableCell></TableRow>}
-                                {!devicesLoading && devices?.map(device => (
-                                    <TableRow key={device.id}>
-                                        <TableCell className="font-medium">{device.boxId}</TableCell>
-                                        <TableCell>
-                                            <Badge variant={device.status === 'active' ? 'default' : 'outline'}>
-                                                {device.status === 'active' ? 'Active' : 'Pending'}
-                                            </Badge>
+                                {devicesLoading ? (
+                                    <TableRow>
+                                        <TableCell colSpan={2}>
+                                            <div className="space-y-2">
+                                                <Skeleton className="h-6 w-full" />
+                                                <Skeleton className="h-6 w-full" />
+                                            </div>
                                         </TableCell>
                                     </TableRow>
-                                ))}
-                                {!devicesLoading && devices?.length === 0 && <TableRow><TableCell colSpan={2} className="text-center">No devices linked yet.</TableCell></TableRow>}
+                                ) : devices?.length > 0 ? (
+                                    devices.map(device => (
+                                        <TableRow key={device.id}>
+                                            <TableCell className="font-medium">{device.boxId}</TableCell>
+                                            <TableCell>
+                                                <Badge variant={device.status === 'active' ? 'default' : 'outline'}>
+                                                    {device.status === 'active' ? 'Active' : 'Pending'}
+                                                </Badge>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))
+                                ) : (
+                                    <TableRow>
+                                        <TableCell colSpan={2} className="text-center">No devices linked yet.</TableCell>
+                                    </TableRow>
+                                )}
                             </TableBody>
                         </Table>
                     </CardContent>
@@ -132,9 +138,11 @@ export default function DevicesPage() {
                             className="text-center text-2xl font-mono tracking-widest h-16"
                             value={pairingCode}
                             onChange={(e) => setPairingCode(e.target.value.replace(/\s/g, ''))}
-                            disabled={!isPremium || isPairing}
+                            disabled={!isPremium || isPairing || familyLoading}
                         />
-                         {!isPremium && (
+                         {familyLoading ? (
+                            <div className="mt-4 flex justify-center"><Skeleton className="h-16 w-full"/></div>
+                         ) : !isPremium && (
                             <div className="mt-4 text-center text-sm text-amber-400/80 p-3 rounded-md bg-amber-400/10 border border-amber-400/20 flex items-center gap-2">
                                 <Gem className="h-4 w-4" />
                                 <div>
@@ -145,7 +153,7 @@ export default function DevicesPage() {
                         )}
                     </CardContent>
                     <CardFooter>
-                        <Button className="w-full" disabled={!isPremium || isPairing || !pairingCode} onClick={handlePairDevice}>
+                        <Button className="w-full" disabled={!isPremium || isPairing || !pairingCode || familyLoading} onClick={handlePairDevice}>
                             {isPairing ? 'Pairing...' : 'Pair Device'}
                         </Button>
                     </CardFooter>
@@ -154,4 +162,3 @@ export default function DevicesPage() {
         </div>
     );
 }
-    

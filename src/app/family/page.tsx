@@ -12,7 +12,7 @@ import { doc, collection, query, where, documentId } from 'firebase/firestore';
 import type { User as MemoraUser, Family } from '@/lib/types';
 import { Skeleton } from "@/components/ui/skeleton";
 
-function FamilyMembers({ familyData, familyMembers, familyMembersLoading }: { familyData: Family, familyMembers: MemoraUser[] | null, familyMembersLoading: boolean }) {
+function FamilyMembers({ familyData, familyMembers, familyMembersLoading }: { familyData: Family | null, familyMembers: MemoraUser[] | null, familyMembersLoading: boolean }) {
     const userImage = (id: string) => PlaceHolderImages.find(p => p.id === id)?.imageUrl || '';
 
     if (familyMembersLoading) {
@@ -83,33 +83,22 @@ export default function FamilyPage() {
 
     const { data: familyMembers, isLoading: familyMembersLoading } = useCollection<MemoraUser>(familyMembersQuery);
 
+    const isLoading = familyLoading || (!familyData && familyMembersLoading);
 
     return (
         <div className="p-4 md:p-8">
             <Card>
                 <CardHeader className="flex flex-row items-center justify-between">
                     <div>
-                         {familyLoading ? <Skeleton className="h-8 w-48" /> : <CardTitle className="font-headline text-2xl">{familyData?.familyName}</CardTitle>}
-                        <CardDescription>Manage who is part of your family's Memora account.</CardDescription>
+                         {isLoading ? <Skeleton className="h-8 w-48 mb-2" /> : <CardTitle className="font-headline text-2xl">{familyData?.familyName}</CardTitle>}
+                         {isLoading ? <Skeleton className="h-5 w-64" /> : <CardDescription>Manage who is part of your family's Memora account.</CardDescription>}
                     </div>
                     <Button>
                         <PlusCircle className="mr-2 h-4 w-4" /> Invite Member
                     </Button>
                 </CardHeader>
                 <CardContent>
-                    {(familyLoading || !familyData) ? (
-                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                            {Array.from({ length: 4 }).map((_, i) => (
-                                <Card key={i} className="text-center flex flex-col items-center p-6">
-                                    <Skeleton className="w-24 h-24 rounded-full mb-4" />
-                                    <Skeleton className="h-6 w-3/4 mb-2" />
-                                    <Skeleton className="h-5 w-1/4" />
-                                </Card>
-                            ))}
-                         </div>
-                    ) : (
-                        <FamilyMembers familyData={familyData} familyMembers={familyMembers} familyMembersLoading={familyMembersLoading} />
-                    )}
+                    <FamilyMembers familyData={familyData} familyMembers={familyMembers} familyMembersLoading={isLoading || (familyData && !familyMembers && familyMembersLoading)} />
                 </CardContent>
             </Card>
         </div>
