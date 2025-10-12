@@ -1,3 +1,58 @@
 {
-  "placeholderImages": []
+  "placeholderImages": [
+    {
+      "id": "story-1",
+      "description": "A family laughing on a sunny beach.",
+      "imageUrl": "https://picsum.photos/seed/s1/400/300",
+      "imageHint": "family beach"
+    },
+    {
+      "id": "story-2",
+      "description": "Grandparents reading a book to a child.",
+      "imageUrl": "https://picsum.photos/seed/s2/400/300",
+      "imageHint": "grandparents reading"
+    },
+    {
+      "id": "story-3",
+      "description": "A vintage photo of a young couple.",
+      "imageUrl": "https://picsum.photos/seed/s3/400/300",
+      "imageHint": "vintage couple"
+    },
+    {
+      "id": "story-4",
+      "description": "A birthday party with a large cake.",
+      "imageUrl": "https://picsum.photos/seed/s4/400/300",
+      "imageHint": "birthday party"
+    },
+    {
+      "id": "user-1",
+      "description": "Portrait of a smiling grandfather.",
+      "imageUrl": "https://picsum.photos/seed/u1/100/100",
+      "imageHint": "grandfather portrait"
+    },
+    {
+      "id": "user-2",
+      "description": "Portrait of a smiling grandmother.",
+      "imageUrl": "https://picsum.photos/seed/u2/100/100",
+      "imageHint": "grandmother portrait"
+    },
+    {
+      "id": "user-3",
+      "description": "Portrait of a young woman.",
+      "imageUrl": "https://picsum.photos/seed/u3/100/100",
+      "imageHint": "woman portrait"
+    },
+    {
+      "id": "user-4",
+      "description": "Portrait of a young man.",
+      "imageUrl": "https://picsum.photos/seed/u4/100/100",
+      "imageHint": "man portrait"
+    },
+    {
+      "id": "logo",
+      "description": "Memora App Logo",
+      "imageUrl": "https://picsum.photos/seed/logo/100/100",
+      "imageHint": "tree logo"
+    }
+  ]
 }
