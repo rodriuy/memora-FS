@@ -21,13 +21,11 @@ export default function FamilyPage() {
     const familyDocRef = useMemoFirebase(() => familyId ? doc(firestore, 'families', familyId) : null, [firestore, familyId]);
     const { data: familyData, isLoading: familyLoading } = useDoc(familyDocRef);
 
-    // Get the list of member IDs from the family document
-    const memberIds = familyData?.memberIds || [];
+    const memberIds = familyData?.memberIds;
 
-    // Now, create a query to get only the users whose IDs are in the memberIds array
     const familyMembersQuery = useMemoFirebase(
       () =>
-        firestore && memberIds.length > 0
+        firestore && memberIds && memberIds.length > 0
           ? query(collection(firestore, 'users'), where(documentId(), 'in', memberIds))
           : null,
       [firestore, memberIds]

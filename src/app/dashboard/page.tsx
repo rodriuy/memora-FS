@@ -24,7 +24,7 @@ import Image from 'next/image';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { useUser, useFirestore, useCollection, useDoc, useMemoFirebase } from '@/firebase';
 import { collection, query, where, doc, documentId } from 'firebase/firestore';
-import type { Story, Device } from '@/lib/types';
+import type { Story } from '@/lib/types';
 import type { User as MemoraUser } from '@/lib/types';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
@@ -45,11 +45,11 @@ export default function Dashboard() {
   const familyDocRef = useMemoFirebase(() => familyId ? doc(firestore, 'families', familyId) : null, [firestore, familyId]);
   const { data: familyData } = useDoc(familyDocRef);
   
-  const memberIds = familyData?.memberIds || [];
-  
+  const memberIds = familyData?.memberIds;
+
   const familyMembersQuery = useMemoFirebase(
     () =>
-      firestore && memberIds.length > 0
+      firestore && memberIds && memberIds.length > 0
         ? query(collection(firestore, 'users'), where(documentId(), 'in', memberIds))
         : null,
     [firestore, memberIds]
@@ -237,5 +237,3 @@ export default function Dashboard() {
     </div>
   );
 }
-
-    
