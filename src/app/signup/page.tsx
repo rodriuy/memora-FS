@@ -15,10 +15,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { useAuth } from '@/firebase';
+import { useAuth, useFirestore, addDocumentNonBlocking, setDocumentNonBlocking } from '@/firebase';
 import { createUserWithEmailAndPassword, updateProfile, GoogleAuthProvider, signInWithPopup, User as FirebaseUser } from 'firebase/auth';
-import { doc, setDoc, serverTimestamp, getDoc, collection } from 'firebase/firestore';
-import { useFirestore } from '@/firebase';
+import { doc, getDoc, collection, serverTimestamp } from 'firebase/firestore';
 
 
 export default function SignupPage() {
@@ -42,36 +41,32 @@ export default function SignupPage() {
       return;
     }
 
-    try {
-      // Create family document first
-      const familyDocRef = doc(collection(firestore, 'families'));
-      await setDoc(familyDocRef, {
-        adminId: user.uid,
-        familyName: `${user.displayName || 'My'}'s Family`,
-        memberIds: [user.uid],
-        subscriptionTier: 'free',
-        createdAt: serverTimestamp(),
-      });
+    // Create family document first. This now returns a promise.
+    const familiesRef = collection(firestore, 'families');
+    const familyData = {
+      adminId: user.uid,
+      familyName: `${user.displayName || 'My'}'s Family`,
+      memberIds: [user.uid],
+      subscriptionTier: 'free',
+      createdAt: serverTimestamp(),
+    };
+    
+    // Use the non-blocking addDoc which handles contextual errors.
+    const familyDocPromise = addDocumentNonBlocking(familiesRef, familyData);
 
-      // Then create the user document with the new familyId
-      await setDoc(userRef, {
-        userId: user.uid,
-        email: user.email,
-        displayName: user.displayName,
-        familyId: familyDocRef.id,
-      });
-
-    } catch (error) {
-       console.error("Error creating family/user docs:", error);
-       toast({
-         variant: "destructive",
-         title: "Setup Failed",
-         description: "Could not create initial user data.",
-       });
-       // Optional: delete user if setup fails, to allow retry
-       await user.delete();
-       throw error; // Re-throw to be caught by the caller
-    }
+    familyDocPromise.then(familyDocRef => {
+        if (familyDocRef) {
+            // Then create the user document with the new familyId
+            const userData = {
+                userId: user.uid,
+                email: user.email,
+                displayName: user.displayName,
+                familyId: familyDocRef.id,
+            };
+            setDocumentNonBlocking(userRef, userData, { merge: false });
+        }
+        // Errors are caught and emitted inside addDocumentNonBlocking and setDocumentNonBlocking
+    });
   };
 
 
@@ -100,11 +95,15 @@ export default function SignupPage() {
       // Redirect to dashboard where useUser hook will have the fresh user
       router.push('/dashboard');
     } catch (error: any) {
-      toast({
-        variant: 'destructive',
-        title: 'Signup Failed',
-        description: error.message,
-      });
+      // General auth errors (e.g., email already in use) are still handled here.
+      // Firestore permission errors will be handled by the global error listener.
+      if (error.name !== 'FirebaseError') { // Avoid showing toasts for our custom errors
+        toast({
+            variant: 'destructive',
+            title: 'Signup Failed',
+            description: error.message,
+        });
+      }
     }
   };
 
@@ -124,11 +123,13 @@ export default function SignupPage() {
       });
       router.push('/dashboard');
     } catch (error: any) {
-      toast({
-        variant: 'destructive',
-        title: 'Google Sign-In Failed',
-        description: error.message,
-      });
+       if (error.name !== 'FirebaseError') {
+          toast({
+            variant: 'destructive',
+            title: 'Google Sign-In Failed',
+            description: error.message,
+          });
+       }
     }
   };
 
