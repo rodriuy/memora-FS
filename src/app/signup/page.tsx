@@ -17,7 +17,7 @@ import { useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/firebase';
 import { createUserWithEmailAndPassword, updateProfile, GoogleAuthProvider, signInWithPopup, User as FirebaseUser } from 'firebase/auth';
-import { doc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp, getDoc, collection } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';
 
 
