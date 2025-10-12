@@ -39,7 +39,7 @@ export default function Dashboard() {
   const storiesQuery = useMemoFirebase(() => familyId ? query(collection(firestore, 'families', familyId, 'stories')) : null, [firestore, familyId]);
   const { data: stories, isLoading: storiesLoading } = useCollection<Story>(storiesQuery);
 
-  const devicesQuery = useMemoFirebase(() => familyId ? query(collection(firestore, 'memoraBoxes'), where('familyId', '==', familyId)) : null, [firestore, familyId]);
+  const devicesQuery = useMemoFirebase(() => familyId ? query(collection(firestore, 'families', familyId, 'memoraBoxes')) : null, [firestore, familyId]);
   const { data: devices, isLoading: devicesLoading } = useCollection<Device>(devicesQuery);
 
   const familyDocRef = useMemoFirebase(() => familyId ? doc(firestore, 'families', familyId) : null, [firestore, familyId]);
@@ -237,3 +237,5 @@ export default function Dashboard() {
     </div>
   );
 }
+
+    

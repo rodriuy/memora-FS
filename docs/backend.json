@@ -195,7 +195,7 @@
           "schema": {
             "$ref": "#/backend/entities/User"
           },
-          "description": "Stores user profiles.  The 'userId' corresponds to the Firebase Auth UID.",
+          "description": "Stores user profiles. The 'userId' corresponds to the Firebase Auth UID.",
           "params": [
             {
               "name": "userId",
@@ -241,14 +241,18 @@
         }
       },
       {
-        "path": "/memoraBoxes/{boxId}",
+        "path": "/families/{familyId}/memoraBoxes/{boxId}",
         "definition": {
           "entityName": "MemoraBox",
           "schema": {
             "$ref": "#/backend/entities/MemoraBox"
           },
-          "description": "Stores information about Memora Box devices.",
+          "description": "Stores information about Memora Box devices, nested under the family they belong to.",
           "params": [
+            {
+              "name": "familyId",
+              "description": "The ID of the family that the box belongs to."
+            },
             {
               "name": "boxId",
               "description": "Unique identifier for the Memora Box (hardware ID)."
@@ -273,6 +277,7 @@
         }
       }
     ],
-    "reasoning": "This Firestore structure is designed to support the \"Memora\" application, prioritizing security, scalability, and debuggability as per the defined principles. The key strategy is Authorization Independence achieved through denormalization of authorization-related data. This eliminates the need for `get()` calls in security rules, enabling atomic operations and simplifying debugging. Structural Segregation is applied to maintain homogeneous security postures within collections.\n\nSpecifically:\n\n*   **Users and Families:** User and family data are stored in separate collections. When a user creates a family, the `familyId` is updated in the user document, establishing the relationship. The `subscriptionTier` is stored in the family document.\n*   **Stories:** Stories are stored within a subcollection of families (`/families/{familyId}/stories/{storyId}`). This enforces ownership based on the `familyId` and allows for efficient querying of stories belonging to a specific family. The `familyId` and potentially the `subscriptionTier` are denormalized into each story document to avoid authorization `get()` calls.\n*   **MemoraBoxes:** The `memoraBoxes` collection stores information about the physical Memora Box devices. The `familyId` is updated when a box is paired, linking the box to a specific family. The `pairingCode` ensures secure pairing.\n*   **DonatedStories:** Donated stories are stored in a separate collection (`/donatedStories/{donatedStoryId}`). Each document references the original story's ID. This segregation simplifies access control for public consumption.\n\nQAPs (Rules are not Filters) are supported by the segregation of data based on access needs. For example, only members of a family can list stories within that family's subcollection. The `donatedStories` collection enables listing of publicly available (anonymized) stories.\n\nAuthorization Independence:\n\n*   The `stories` subcollection includes the `familyId` field, which is denormalized from the parent `families` document. This allows security rules to validate access based on the user's `familyId` without requiring a `get()` call to the `families` document.\n*   The decision to place `stories` as a subcollection of `families` rather than a top-level collection is specifically intended to leverage path-based authorization. This provides the best security posture. If the `stories` collection was placed at the top-level, the security rules would be far more complex as the rules would have to validate whether the requesting user is a member of the family that owns the story.\n*   If other family attributes are needed for authorization (e.g., `subscriptionTier`), these should be denormalized into the `stories` documents.\n\nThis structure provides a clear separation of concerns, enabling straightforward and robust security rules that can be easily debugged and maintained."
+    "reasoning": "This Firestore structure is designed to support the \"Memora\" application, prioritizing security, scalability, and debuggability as per the defined principles. The key strategy is Authorization Independence achieved through denormalization of authorization-related data. This eliminates the need for `get()` calls in security rules, enabling atomic operations and simplifying debugging. Structural Segregation is applied to maintain homogeneous security postures within collections.\n\nSpecifically:\n\n*   **Users and Families:** User and family data are stored in separate collections. When a user creates a family, the `familyId` is updated in the user document, establishing the relationship. The `subscriptionTier` is stored in the family document.\n*   **Stories and MemoraBoxes:** Stories and MemoraBoxes are stored within subcollections of families (`/families/{familyId}/stories/{storyId}` and `/families/{familyId}/memoraBoxes/{boxId}`). This enforces ownership based on the `familyId` and allows for efficient querying of items belonging to a specific family. The `familyId` and potentially the `subscriptionTier` are denormalized into each story document to avoid authorization `get()` calls.\n*   **DonatedStories:** Donated stories are stored in a separate collection (`/donatedStories/{donatedStoryId}`). Each document references the original story's ID. This segregation simplifies access control for public consumption.\n\nQAPs (Rules are not Filters) are supported by the segregation of data based on access needs. For example, only members of a family can list stories or devices within that family's subcollection. The `donatedStories` collection enables listing of publicly available (anonymized) stories.\n\nAuthorization Independence:\n\n*   The `stories` and `memoraBoxes` subcollections leverage path-based authorization. This provides the best security posture. If these collections were placed at the top-level, the security rules would be far more complex as the rules would have to validate whether the requesting user is a member of the family that owns the item.\n*   If other family attributes are needed for authorization (e.g., `subscriptionTier`), these should be denormalized into the documents within the subcollections."
   }
 }
+    

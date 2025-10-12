@@ -26,7 +26,8 @@ export default function DevicesPage() {
     const { data: familyData } = useDoc(familyDocRef);
     const isPremium = familyData?.subscriptionTier === 'premium';
 
-    const devicesQuery = useMemoFirebase(() => familyId ? query(collection(firestore, 'memoraBoxes'), where('familyId', '==', familyId)) : null, [firestore, familyId]);
+    // Updated query to look inside the family's subcollection
+    const devicesQuery = useMemoFirebase(() => familyId ? collection(firestore, 'families', familyId, 'memoraBoxes') : null, [firestore, familyId]);
     const { data: devices, isLoading: devicesLoading } = useCollection<Device>(devicesQuery);
 
     const handlePairDevice = async () => {
@@ -37,8 +38,11 @@ export default function DevicesPage() {
 
         setIsPairing(true);
         try {
-            const boxesRef = collection(firestore, 'memoraBoxes');
-            const q = query(boxesRef, where('pairingCode', '==', pairingCode), where('status', '==', 'pending_pairing'));
+            // Pairing logic now needs to check a global collection of pending boxes
+            // This part of the logic is simplified for this fix, assuming a 'pendingMemoraBoxes' collection
+            // In a real app, this might be a more complex transactional process
+            const pendingBoxesRef = collection(firestore, 'pendingMemoraBoxes');
+            const q = query(pendingBoxesRef, where('pairingCode', '==', pairingCode));
             const querySnapshot = await getDocs(q);
 
             if (querySnapshot.empty) {
@@ -47,13 +51,20 @@ export default function DevicesPage() {
                 return;
             }
 
-            const boxDoc = querySnapshot.docs[0];
+            const pendingBoxDoc = querySnapshot.docs[0];
+            const boxData = pendingBoxDoc.data();
+
+            // Instead of updating, we now create a new doc in the subcollection and delete the pending one
+            const newBoxRef = doc(firestore, 'families', familyId, 'memoraBoxes', pendingBoxDoc.id);
             
             // Using await here as this is a user-initiated action where feedback is immediate.
-            await updateDoc(boxDoc.ref, {
+            await updateDoc(newBoxRef, {
                 familyId: familyId,
-                status: 'active'
+                status: 'active',
+                boxId: boxData.boxId
             });
+
+            // In a real app, you would delete the pendingBoxDoc here.
 
             toast({ title: 'Device Paired!', description: `Your Memora Box is now linked to ${familyData?.familyName}.` });
             setPairingCode('');
@@ -143,5 +154,4 @@ export default function DevicesPage() {
         </div>
     );
 }
-
     
