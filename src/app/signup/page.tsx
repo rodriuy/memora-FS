@@ -1,3 +1,4 @@
+
 'use client';
 
 import Link from 'next/link';
@@ -14,9 +15,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { useAuth, useFirestore, addDocumentNonBlocking, setDocumentNonBlocking } from '@/firebase';
-import { createUserWithEmailAndPassword, updateProfile, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
-import { collection, doc, serverTimestamp } from 'firebase/firestore';
+import { useAuth } from '@/firebase';
+import { createUserWithEmailAndPassword, updateProfile, GoogleAuthProvider, signInWithPopup, User as FirebaseUser } from 'firebase/auth';
+import { doc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
+import { useFirestore } from '@/firebase';
+
 
 export default function SignupPage() {
   const auth = useAuth();
@@ -28,39 +31,46 @@ export default function SignupPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
-  const createFamilyAndUserDocs = async (user: any) => {
-    const familyRef = collection(firestore, 'families');
+  // This function is now responsible for creating docs if they don't exist
+  // It's designed to be called safely on login or after signup.
+  const setupUserAndFamilyIfNeeded = async (user: FirebaseUser) => {
     const userRef = doc(firestore, 'users', user.uid);
+    const userSnap = await getDoc(userRef);
+
+    // If user document already exists, do nothing.
+    if (userSnap.exists()) {
+      return;
+    }
 
     try {
-      const familyDoc = await addDocumentNonBlocking(familyRef, {
+      // Create family document first
+      const familyDocRef = doc(collection(firestore, 'families'));
+      await setDoc(familyDocRef, {
         adminId: user.uid,
-        familyName: `${user.displayName}'s Family`,
+        familyName: `${user.displayName || 'My'}'s Family`,
         memberIds: [user.uid],
         subscriptionTier: 'free',
         createdAt: serverTimestamp(),
       });
-      
-      const familyId = familyDoc.id;
 
-      await setDocumentNonBlocking(userRef, {
+      // Then create the user document with the new familyId
+      await setDoc(userRef, {
         userId: user.uid,
         email: user.email,
         displayName: user.displayName,
-        familyId: familyId,
-      }, { merge: true });
-
-      return familyId;
-    } catch (error) {
-      console.error("Error creating family/user docs:", error);
-      toast({
-        variant: "destructive",
-        title: "Setup Failed",
-        description: "Could not create initial user data.",
+        familyId: familyDocRef.id,
       });
-      // Optionally delete the user account if setup fails
-      await user.delete();
-      throw error;
+
+    } catch (error) {
+       console.error("Error creating family/user docs:", error);
+       toast({
+         variant: "destructive",
+         title: "Setup Failed",
+         description: "Could not create initial user data.",
+       });
+       // Optional: delete user if setup fails, to allow retry
+       await user.delete();
+       throw error; // Re-throw to be caught by the caller
     }
   };
 
@@ -76,21 +86,19 @@ export default function SignupPage() {
     }
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      // Set the display name right after creation
       await updateProfile(userCredential.user, { displayName });
-      
-      // We need to reload user to get the display name
-      await userCredential.user.reload();
-      const updatedUser = auth.currentUser;
 
-      if(updatedUser) {
-        await createFamilyAndUserDocs(updatedUser);
-      }
+      // After setting displayName, call the setup function
+      // It's important to use the user object from the credential
+      await setupUserAndFamilyIfNeeded(userCredential.user);
 
       toast({
         title: "Account Created",
-        description: "Welcome to Memora!",
+        description: "Welcome to Memora! Redirecting you to the dashboard...",
       });
-      router.push('/');
+      // Redirect to dashboard where useUser hook will have the fresh user
+      router.push('/dashboard');
     } catch (error: any) {
       toast({
         variant: 'destructive',
@@ -106,19 +114,19 @@ export default function SignupPage() {
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
 
-      // In a real app, you'd check if the user is new or existing.
-      // For this implementation, we assume a new user is created.
-      await createFamilyAndUserDocs(user);
+      // The setup function will check if the user is new and create docs if needed.
+      // This makes it safe for both new signups and returning users.
+      await setupUserAndFamilyIfNeeded(user);
       
       toast({
-        title: "Account Created",
+        title: "Signed In",
         description: "Welcome to Memora!",
       });
-      router.push('/');
+      router.push('/dashboard');
     } catch (error: any) {
       toast({
         variant: 'destructive',
-        title: 'Google Signup Failed',
+        title: 'Google Sign-In Failed',
         description: error.message,
       });
     }

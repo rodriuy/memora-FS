@@ -1,3 +1,4 @@
+
 'use client';
 
 import Link from 'next/link';
@@ -27,7 +28,7 @@ export default function LoginPage() {
   const handleLogin = async () => {
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      router.push('/');
+      router.push('/dashboard');
     } catch (error: any) {
       toast({
         variant: 'destructive',
@@ -41,8 +42,10 @@ export default function LoginPage() {
     const provider = new GoogleAuthProvider();
     try {
       await signInWithPopup(auth, provider);
-      // Logic to create user/family docs on first Google login should be handled where user state is managed globally
-      router.push('/');
+      // In a full app, you'd have a function here similar to signup's
+      // `setupUserAndFamilyIfNeeded` to handle new vs returning users.
+      // For now, we assume signup page is used for first-time Google login.
+      router.push('/dashboard');
     } catch (error: any) {
       toast({
         variant: 'destructive',
