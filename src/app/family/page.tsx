@@ -51,7 +51,7 @@ function InviteMemberModal({ familyId }: { familyId: string }) {
     );
 }
 
-function FamilyMembers({ familyData, familyMembers, familyMembersLoading }: { familyData: Family | null, familyMembers: MemoraUser[] | null, familyMembersLoading: boolean }) {
+function FamilyMembers({ familyData, familyMembers, familyMembersLoading, memberIds }: { familyData: Family | null, familyMembers: MemoraUser[] | null, familyMembersLoading: boolean, memberIds: string[] | undefined }) {
     const { user: currentUser } = useUser();
     const firestore = useFirestore();
     const { toast } = useToast();
@@ -69,8 +69,11 @@ function FamilyMembers({ familyData, familyMembers, familyMembersLoading }: { fa
         toast({ title: "Miembro eliminado", description: "El usuario ha sido eliminado de la familia."});
         // Note: In a full app, you would also need to handle re-assigning the user to a new family or deleting them.
     };
+    
+    const isFamilyMembersListLoading = familyMembersLoading && memberIds && memberIds.length > 0;
 
-    if (familyMembersLoading) {
+
+    if (isFamilyMembersListLoading) {
         return (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 {Array.from({ length: familyData?.memberIds?.length || 4 }).map((_, i) => (
@@ -145,7 +148,7 @@ export default function FamilyPage() {
 
     const { data: familyMembers, isLoading: familyMembersLoading } = useCollection<MemoraUser>(familyMembersQuery);
 
-    const isPageLoading = familyLoading || (!!familyData && !familyMembers && familyMembersLoading);
+    const isPageLoading = familyLoading || (familyMembersLoading && (!familyMembers && memberIds && memberIds.length > 0));
 
     return (
         <div className="p-4 md:p-8">
@@ -163,7 +166,7 @@ export default function FamilyPage() {
                         </DialogTrigger>
                     </CardHeader>
                     <CardContent>
-                        <FamilyMembers familyData={familyData} familyMembers={familyMembers} familyMembersLoading={isPageLoading} />
+                        <FamilyMembers familyData={familyData} familyMembers={familyMembers} familyMembersLoading={isPageLoading} memberIds={memberIds}/>
                     </CardContent>
                 </Card>
                 {familyId && <InviteMemberModal familyId={familyId} />}
@@ -171,5 +174,3 @@ export default function FamilyPage() {
         </div>
     );
 }
-
-    

@@ -81,8 +81,7 @@ export default function Dashboard() {
 
   const isLoading = isUserLoading || familyLoading;
   
-  // This derived state is more precise. It's loading members if the family is loaded but members are not.
-  const isFamilyMembersLoading = !familyLoading && (!familyMembers && familyMembersLoading);
+  const isFamilyMembersListLoading = familyMembersLoading && memberIds && memberIds.length > 0;
 
   if (isLoading) {
       return (
@@ -144,7 +143,7 @@ export default function Dashboard() {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            {familyMembersLoading ? <Skeleton className="h-8 w-12" /> : <div className="text-2xl font-bold">{familyMembers?.length || 0}</div>}
+            {isFamilyMembersListLoading ? <Skeleton className="h-8 w-12" /> : <div className="text-2xl font-bold">{familyMembers?.length || 0}</div>}
             <p className="text-xs text-muted-foreground">
               Connected and sharing memories
             </p>
@@ -241,7 +240,7 @@ export default function Dashboard() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-           {isFamilyMembersLoading ? (
+           {isFamilyMembersListLoading ? (
                 <div className="space-y-4">
                     <Skeleton className="h-16 w-full" />
                     <Skeleton className="h-16 w-full" />
@@ -284,5 +283,3 @@ export default function Dashboard() {
     </div>
   );
 }
-
-    
