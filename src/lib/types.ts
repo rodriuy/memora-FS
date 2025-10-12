@@ -1,24 +1,29 @@
 
 export type Story = {
   id: string;
+  familyId: string;
   title: string;
   narrator: string;
-  transcription: string;
   audioUrl: string;
+  transcription: string;
   status: 'completed' | 'transcribing' | 'uploading';
-  imageId: string;
+  imageId?: string;
   isDonated: boolean;
+  createdAt: any; // Firestore Timestamp
 };
 
-export type FamilyMember = {
+export type User = {
   id: string;
-  name: string;
-  role: 'Admin' | 'Member';
-  avatarId: string;
+  userId: string;
+  email: string;
+  displayName: string;
+  familyId: string;
+  avatarId?: string;
 };
 
 export type Device = {
   id: string;
-  name: string;
+  boxId: string;
+  familyId: string;
   status: 'active' | 'pending_pairing';
 };

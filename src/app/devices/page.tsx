@@ -5,13 +5,33 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useSubscription } from "@/hooks/use-subscription";
-import { devices } from "@/lib/data";
 import { Badge } from "@/components/ui/badge";
 import { Gem, RadioTower } from "lucide-react";
+import { useUser, useFirestore, useCollection, useDoc, useMemoFirebase } from '@/firebase';
+import { collection, query, where, doc } from 'firebase/firestore';
+import type { Device } from '@/lib/types';
+import { useState, useEffect } from 'react';
 
 export default function DevicesPage() {
-    const { isPremium } = useSubscription();
+    const { user } = useUser();
+    const firestore = useFirestore();
+    const [familyId, setFamilyId] = useState<string | null>(null);
+
+    const userDocRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [firestore, user]);
+    const { data: userData } = useDoc(userDocRef);
+
+    useEffect(() => {
+        if (userData) {
+            setFamilyId(userData.familyId);
+        }
+    }, [userData]);
+    
+    const familyDocRef = useMemoFirebase(() => familyId ? doc(firestore, 'families', familyId) : null, [firestore, familyId]);
+    const { data: familyData } = useDoc(familyDocRef);
+    const isPremium = familyData?.subscriptionTier === 'premium';
+
+    const devicesQuery = useMemoFirebase(() => familyId ? query(collection(firestore, 'memoraBoxes'), where('familyId', '==', familyId)) : null, [firestore, familyId]);
+    const { data: devices, isLoading: devicesLoading } = useCollection<Device>(devicesQuery);
 
     return (
         <div className="p-4 md:p-8 grid gap-8 md:grid-cols-2">
@@ -33,9 +53,10 @@ export default function DevicesPage() {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {devices.map(device => (
+                                {devicesLoading && <TableRow><TableCell colSpan={2}>Loading devices...</TableCell></TableRow>}
+                                {!devicesLoading && devices?.map(device => (
                                     <TableRow key={device.id}>
-                                        <TableCell className="font-medium">{device.name}</TableCell>
+                                        <TableCell className="font-medium">{device.boxId}</TableCell>
                                         <TableCell>
                                             <Badge variant={device.status === 'active' ? 'default' : 'outline'}>
                                                 {device.status === 'active' ? 'Active' : 'Pending'}
@@ -43,6 +64,7 @@ export default function DevicesPage() {
                                         </TableCell>
                                     </TableRow>
                                 ))}
+                                {!devicesLoading && devices?.length === 0 && <TableRow><TableCell colSpan={2} className="text-center">No devices linked yet.</TableCell></TableRow>}
                             </TableBody>
                         </Table>
                     </CardContent>

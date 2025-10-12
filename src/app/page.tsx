@@ -1,3 +1,6 @@
+
+'use client';
+
 import {
   Card,
   CardContent,
@@ -17,13 +20,44 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
-import { stories, familyMembers, devices } from '@/lib/data';
 import Image from 'next/image';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
+import { useUser, useFirestore, useCollection, useDoc, useMemoFirebase } from '@/firebase';
+import { collection, query, where, doc } from 'firebase/firestore';
+import type { Story, Device } from '@/lib/types';
+import type { User as MemoraUser } from '@/lib/types';
+import { useEffect, useState } from 'react';
 
 export default function Dashboard() {
-  const recentStories = stories.slice(0, 3);
+  const { user } = useUser();
+  const firestore = useFirestore();
+  const [familyId, setFamilyId] = useState<string | null>(null);
+
+  const userDocRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [firestore, user]);
+  const { data: userData } = useDoc(userDocRef);
+
+  useEffect(() => {
+    if (userData) {
+      setFamilyId(userData.familyId);
+    }
+  }, [userData]);
+
+  const storiesQuery = useMemoFirebase(() => familyId ? query(collection(firestore, 'families', familyId, 'stories')) : null, [firestore, familyId]);
+  const { data: stories, isLoading: storiesLoading } = useCollection<Story>(storiesQuery);
+
+  const devicesQuery = useMemoFirebase(() => familyId ? query(collection(firestore, 'memoraBoxes'), where('familyId', '==', familyId)) : null, [firestore, familyId]);
+  const { data: devices, isLoading: devicesLoading } = useCollection<Device>(devicesQuery);
+
+  const familyMembersQuery = useMemoFirebase(() => familyId ? query(collection(firestore, 'users'), where('familyId', '==', familyId)) : null, [firestore, familyId]);
+  const { data: familyMembers, isLoading: familyMembersLoading } = useCollection<MemoraUser>(familyMembersQuery);
+
+  const familyDocRef = useMemoFirebase(() => familyId ? doc(firestore, 'families', familyId) : null, [firestore, familyId]);
+  const { data: familyData } = useDoc(familyDocRef);
+
+  const recentStories = stories ? stories.slice(0, 3) : [];
   const storyImage = (id: string) => PlaceHolderImages.find(p => p.id === id)?.imageUrl || '';
+  const userImage = (id: string) => PlaceHolderImages.find(p => p.id === id)?.imageUrl || '';
+
 
   return (
     <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
@@ -47,7 +81,7 @@ export default function Dashboard() {
             <BookText className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stories.length}</div>
+            <div className="text-2xl font-bold">{storiesLoading ? '...' : stories?.length || 0}</div>
             <p className="text-xs text-muted-foreground">
               Preserving your family's legacy
             </p>
@@ -61,7 +95,7 @@ export default function Dashboard() {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{familyMembers.length}</div>
+            <div className="text-2xl font-bold">{familyMembersLoading ? '...' : familyMembers?.length || 0}</div>
             <p className="text-xs text-muted-foreground">
               Connected and sharing memories
             </p>
@@ -75,7 +109,7 @@ export default function Dashboard() {
             <RadioTower className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{devices.length}</div>
+            <div className="text-2xl font-bold">{devicesLoading ? '...' : devices?.length || 0}</div>
             <p className="text-xs text-muted-foreground">
               Memora Boxes bringing stories to life
             </p>
@@ -92,12 +126,12 @@ export default function Dashboard() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            {recentStories.map((story, index) => (
+            {storiesLoading ? <p>Loading stories...</p> : recentStories.map((story, index) => (
               <div key={story.id}>
                 <div className="flex items-center space-x-4">
                   <div className="relative h-24 w-24 md:h-28 md:w-40 flex-shrink-0">
                     <Image
-                      src={storyImage(story.imageId)}
+                      src={storyImage(story.imageId || 'story-1')}
                       alt={story.title}
                       fill
                       data-ai-hint="family photo"
@@ -137,6 +171,7 @@ export default function Dashboard() {
                 )}
               </div>
             ))}
+             {!storiesLoading && recentStories.length === 0 && <p className="text-center text-muted-foreground">No stories yet. Add one!</p>}
           </CardContent>
         </Card>
 
@@ -144,26 +179,26 @@ export default function Dashboard() {
           <CardHeader>
             <CardTitle className="font-headline">Family Circle</CardTitle>
             <CardDescription>
-              Everyone connected to the Perez family story.
+              Everyone connected to your family story.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {familyMembers.map((member, index) => (
+            {familyMembersLoading ? <p>Loading members...</p> : familyMembers?.map((member, index) => (
               <div key={member.id}>
                 <div className="flex items-center justify-between space-x-4">
                   <div className="flex items-center space-x-4">
                     <Avatar>
-                      <AvatarImage src={storyImage(member.avatarId)} />
+                      <AvatarImage src={userImage(member.avatarId || 'user-1')} />
                       <AvatarFallback>
-                        {member.name.charAt(0)}
+                        {member.displayName?.charAt(0)}
                       </AvatarFallback>
                     </Avatar>
                     <div>
                       <p className="text-sm font-medium leading-none">
-                        {member.name}
+                        {member.displayName}
                       </p>
                       <p className="text-sm text-muted-foreground">
-                        {member.role}
+                        {familyData?.adminId === member.userId ? 'Admin' : 'Member'}
                       </p>
                     </div>
                   </div>
@@ -171,7 +206,7 @@ export default function Dashboard() {
                     View
                   </Button>
                 </div>
-                {index < familyMembers.length - 1 && (
+                {index < (familyMembers?.length || 0) - 1 && (
                   <Separator className="my-4" />
                 )}
               </div>

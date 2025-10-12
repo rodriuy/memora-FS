@@ -13,8 +13,10 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '../ui/button';
 import { LogOut, Settings, User } from 'lucide-react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useUser, useAuth } from '@/firebase';
+import { signOut } from 'firebase/auth';
 
 function getPageTitle(pathname: string): string {
     if (pathname === '/') return 'Dashboard';
@@ -33,6 +35,23 @@ function getPageTitle(pathname: string): string {
 export function Header() {
   const pathname = usePathname();
   const pageTitle = getPageTitle(pathname);
+  const { user, isUserLoading } = useUser();
+  const auth = useAuth();
+  const router = useRouter();
+
+  const handleLogout = async () => {
+    await signOut(auth);
+    router.push('/login');
+  };
+
+  const getInitials = (name: string | null | undefined) => {
+    if (!name) return '..';
+    const names = name.split(' ');
+    if (names.length > 1) {
+      return `${names[0][0]}${names[names.length - 1][0]}`;
+    }
+    return name.substring(0, 2);
+  }
 
   return (
     <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-background/80 backdrop-blur-sm px-4 md:px-6">
@@ -44,16 +63,16 @@ export function Header() {
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" className="relative h-9 w-9 rounded-full">
             <Avatar className="h-9 w-9">
-              <AvatarImage src="https://picsum.photos/seed/u1/100/100" alt="Admin" data-ai-hint="person portrait" />
-              <AvatarFallback>AP</AvatarFallback>
+              <AvatarImage src={user?.photoURL || "https://picsum.photos/seed/u1/100/100"} alt={user?.displayName || "User"} data-ai-hint="person portrait" />
+              <AvatarFallback>{isUserLoading ? '..' : getInitials(user?.displayName)}</AvatarFallback>
             </Avatar>
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent className="w-56" align="end">
           <DropdownMenuLabel>
             <div className='flex flex-col space-y-1'>
-                <p className="text-sm font-medium leading-none">Admin Pérez</p>
-                <p className="text-xs leading-none text-muted-foreground">admin@memora.com</p>
+                <p className="text-sm font-medium leading-none">{user?.displayName || "Guest"}</p>
+                <p className="text-xs leading-none text-muted-foreground">{user?.email || ""}</p>
             </div>
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
@@ -66,12 +85,10 @@ export function Header() {
             <span>Settings</span>
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <Link href="/login">
-            <DropdownMenuItem>
+          <DropdownMenuItem onClick={handleLogout}>
               <LogOut className="mr-2 h-4 w-4" />
               <span>Log out</span>
-            </DropdownMenuItem>
-          </Link>
+          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
     </header>

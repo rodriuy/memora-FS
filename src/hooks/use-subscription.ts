@@ -1,6 +1,9 @@
 
+'use client';
 import { useState, useEffect } from 'react';
-import { subscription as mockSubscription } from '@/lib/data';
+import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
+import { doc } from 'firebase/firestore';
+
 
 type Subscription = {
   tier: 'free' | 'premium';
@@ -15,12 +18,29 @@ type Subscription = {
 };
 
 export function useSubscription() {
-  const [subscription, setSubscription] = useState<Subscription | null>(null);
+  const { user } = useUser();
+  const firestore = useFirestore();
+  const [familyId, setFamilyId] = useState<string | null>(null);
+  
+  const userDocRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [firestore, user]);
+  const { data: userData } = useDoc(userDocRef);
 
   useEffect(() => {
-    // In a real app, you would fetch this from your backend
-    setSubscription(mockSubscription);
-  }, []);
+    if (userData) {
+      setFamilyId(userData.familyId);
+    }
+  }, [userData]);
+  
+  const familyDocRef = useMemoFirebase(() => familyId ? doc(firestore, 'families', familyId) : null, [firestore, familyId]);
+  const { data: familyData } = useDoc(familyDocRef);
+
+  const subscription: Subscription | null = familyData ? {
+      tier: familyData.subscriptionTier,
+      // Usage would be calculated from collections in a real app
+      stories: { current: 0, limit: familyData.subscriptionTier === 'free' ? 5 : null },
+      photos: { current: 0, limit: familyData.subscriptionTier === 'free' ? 20 : null },
+  } : null;
+
 
   const isPremium = subscription?.tier === 'premium';
 

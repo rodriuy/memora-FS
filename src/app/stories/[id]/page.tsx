@@ -2,7 +2,6 @@
 'use client';
 
 import { notFound } from 'next/navigation';
-import { stories, familyMembers } from '@/lib/data';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import Image from 'next/image';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -11,9 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { Separator } from '@/components/ui/separator';
 import { Film, Gift, VenetianMask, Edit, Check } from 'lucide-react';
-import { useSubscription } from '@/hooks/use-subscription';
 import {
   Dialog,
   DialogContent,
@@ -27,30 +24,64 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { anonymizeStory } from '@/ai/flows/anonymize-story-for-donation';
 import { generateAnimatedPhoto } from '@/ai/flows/generate-animated-photo';
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { useUser, useFirestore, useDoc, useMemoFirebase, updateDocumentNonBlocking } from '@/firebase';
+import { doc } from 'firebase/firestore';
+import type { Story } from '@/lib/types';
+
 
 export default function StoryDetailPage({ params }: { params: { id: string } }) {
-  const story = stories.find((s) => s.id === params.id);
-  const { isPremium } = useSubscription();
+  const { user } = useUser();
+  const firestore = useFirestore();
   const { toast } = useToast();
+  const [familyId, setFamilyId] = useState<string | null>(null);
+
+  const userDocRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [firestore, user]);
+  const { data: userData } = useDoc(userDocRef);
+
+  useEffect(() => {
+    if (userData) {
+      setFamilyId(userData.familyId);
+    }
+  }, [userData]);
+
+  const storyDocRef = useMemoFirebase(() => familyId ? doc(firestore, 'families', familyId, 'stories', params.id) : null, [firestore, familyId, params.id]);
+  const { data: story, isLoading: storyLoading } = useDoc<Story>(storyDocRef);
+
+  const familyDocRef = useMemoFirebase(() => familyId ? doc(firestore, 'families', familyId) : null, [firestore, familyId]);
+  const { data: familyData } = useDoc(familyDocRef);
+  const isPremium = familyData?.subscriptionTier === 'premium';
+
   const [isDonated, setIsDonated] = React.useState(story?.isDonated || false);
   const [isDonating, setIsDonating] = React.useState(false);
   const [isAnimating, setIsAnimating] = React.useState(false);
+
+  useEffect(() => {
+    if (story) {
+        setIsDonated(story.isDonated);
+    }
+  }, [story]);
+
+  if (storyLoading) {
+    return <div>Loading story...</div>
+  }
 
   if (!story) {
     notFound();
   }
 
-  const narrator = familyMembers.find((m) => m.name === story.narrator);
   const storyImage = PlaceHolderImages.find((p) => p.id === story.imageId)?.imageUrl || '';
-  const narratorAvatar = PlaceHolderImages.find((p) => p.id === narrator?.avatarId)?.imageUrl || '';
+  // This is a placeholder, in a real app you'd fetch narrator details
+  const narratorAvatar = PlaceHolderImages.find((p) => p.id === 'user-1')?.imageUrl || '';
 
   const handleDonationToggle = async (checked: boolean) => {
     if (checked) {
         setIsDonating(true);
         try {
-            const result = await anonymizeStory({ storyText: story.transcription });
-            console.log("Anonymized text:", result.anonymizedText);
+            // The logic for calling the cloud function will be added later
+            // For now, we just update the document
+            updateDocumentNonBlocking(storyDocRef!, { isDonated: true });
+
             setIsDonated(true);
             toast({
                 title: 'Story Donated',
@@ -61,7 +92,7 @@ export default function StoryDetailPage({ params }: { params: { id: string } }) 
             toast({
                 variant: 'destructive',
                 title: 'Donation Failed',
-                description: 'Could not anonymize and donate the story.',
+                description: 'Could not update the story for donation.',
             });
         } finally {
             setIsDonating(false);
@@ -74,8 +105,14 @@ export default function StoryDetailPage({ params }: { params: { id: string } }) 
     const formData = new FormData(event.currentTarget);
     const prompt = formData.get('prompt') as string;
     
+    if (!isPremium) {
+        toast({ variant: 'destructive', title: 'Premium Feature', description: 'Please upgrade to animate photos.'});
+        return;
+    }
+
     setIsAnimating(true);
     try {
+        // The logic for calling the HTTP function will be added later
         // In a real app, you'd convert the image URL to a data URI
         const mockPhotoDataUri = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgICAgMCAgIDAwMDBAYEBAQEBAgGBgUGCQgKCgkICQkKDA8MCgsOCwkJDRENDg8QEBEQCgwSExIQEw8QEBD/2wBDAQMDAwQDBAgEBAgQCwkLEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBD/wAARCAAFAAUDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAn/xAAZEAADAQEBAAAAAAAAAAAAAAAAAQIDBQT/xAAVAQEBAAAAAAAAAAAAAAAAAAAAAf/EABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAMAwEAAhEDEQA/AIbFslqbvYVDK4M2kXJ3p6gCUf//Z';
         const result = await generateAnimatedPhoto({ photoDataUri: mockPhotoDataUri, animationPrompt: prompt });
@@ -149,7 +186,7 @@ export default function StoryDetailPage({ params }: { params: { id: string } }) 
                             </div>
                         </div>
                         <DialogFooter>
-                            <Button type="submit" disabled={isAnimating}>{isAnimating ? "Animating..." : "Generate Animation"}</Button>
+                            <Button type="submit" disabled={isAnimating || !isPremium}>{isAnimating ? "Animating..." : "Generate Animation"}</Button>
                         </DialogFooter>
                     </form>
                 </DialogContent>

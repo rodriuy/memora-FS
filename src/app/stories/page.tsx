@@ -1,3 +1,5 @@
+'use client';
+
 import {
     Table,
     TableBody,
@@ -7,15 +9,34 @@ import {
     TableRow,
   } from "@/components/ui/table"
   import { Badge } from "@/components/ui/badge"
-  import { stories } from "@/lib/data"
   import { Button } from "@/components/ui/button"
   import Link from "next/link"
   import { ArrowRight, PlusCircle } from "lucide-react"
   import Image from "next/image"
   import { PlaceHolderImages } from "@/lib/placeholder-images"
+  import { useUser, useFirestore, useCollection, useDoc, useMemoFirebase } from '@/firebase';
+  import { collection, query, doc } from 'firebase/firestore';
+  import type { Story } from '@/lib/types';
+  import { useState, useEffect } from 'react';
   
   export default function StoriesPage() {
-    const storyImage = (id: string) => PlaceHolderImages.find(p => p.id === id)?.imageUrl || '';
+    const { user } = useUser();
+    const firestore = useFirestore();
+    const [familyId, setFamilyId] = useState<string | null>(null);
+
+    const userDocRef = useMemoFirebase(() => user ? doc(firestore, 'users', user.uid) : null, [firestore, user]);
+    const { data: userData } = useDoc(userDocRef);
+
+    useEffect(() => {
+        if (userData) {
+        setFamilyId(userData.familyId);
+        }
+    }, [userData]);
+
+    const storiesQuery = useMemoFirebase(() => familyId ? query(collection(firestore, 'families', familyId, 'stories')) : null, [firestore, familyId]);
+    const { data: stories, isLoading: storiesLoading } = useCollection<Story>(storiesQuery);
+
+    const storyImage = (id: string) => PlaceHolderImages.find(p => p.id === id)?.imageUrl || 'https://picsum.photos/seed/placeholder/64/64';
 
     return (
       <div className="p-4 md:p-8">
@@ -45,14 +66,15 @@ import {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {stories.map((story) => (
+              {storiesLoading && <TableRow><TableCell colSpan={5}>Loading stories...</TableCell></TableRow>}
+              {!storiesLoading && stories?.map((story) => (
                 <TableRow key={story.id}>
                   <TableCell className="hidden sm:table-cell">
                     <Image
                       alt={story.title}
                       className="aspect-square rounded-md object-cover"
                       height="64"
-                      src={storyImage(story.imageId)}
+                      src={storyImage(story.imageId || 'story-1')}
                       width="64"
                       data-ai-hint="family photo"
                     />
