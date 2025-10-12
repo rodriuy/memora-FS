@@ -9,29 +9,16 @@ import { Badge } from "@/components/ui/badge";
 import { PlusCircle, UserX } from "lucide-react";
 import { useUser, useFirestore, useDoc, useMemoFirebase, useCollection } from '@/firebase';
 import { doc, collection, query, where, documentId } from 'firebase/firestore';
-import type { User as MemoraUser } from '@/lib/types';
+import type { User as MemoraUser, Family } from '@/lib/types';
 import { Skeleton } from "@/components/ui/skeleton";
 
-function FamilyMembers({ familyData }: { familyData: any }) {
-    const firestore = useFirestore();
-    const memberIds = familyData?.memberIds || [];
-
-    const familyMembersQuery = useMemoFirebase(
-        () =>
-            memberIds.length > 0
-                ? query(collection(firestore, 'users'), where(documentId(), 'in', memberIds))
-                : null,
-        [firestore, memberIds]
-    );
-
-    const { data: familyMembers, isLoading: familyMembersLoading } = useCollection<MemoraUser>(familyMembersQuery);
-
+function FamilyMembers({ familyData, familyMembers, familyMembersLoading }: { familyData: Family, familyMembers: MemoraUser[] | null, familyMembersLoading: boolean }) {
     const userImage = (id: string) => PlaceHolderImages.find(p => p.id === id)?.imageUrl || '';
 
     if (familyMembersLoading) {
         return (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {Array.from({ length: memberIds.length || 4 }).map((_, i) => (
+                {Array.from({ length: familyData?.memberIds?.length || 4 }).map((_, i) => (
                     <Card key={i} className="text-center flex flex-col items-center p-6">
                         <Skeleton className="w-24 h-24 rounded-full mb-4" />
                         <Skeleton className="h-6 w-3/4 mb-2" />
@@ -61,8 +48,8 @@ function FamilyMembers({ familyData }: { familyData: any }) {
                         <AvatarFallback>{member.displayName?.substring(0, 2)}</AvatarFallback>
                     </Avatar>
                     <p className="font-semibold text-lg">{member.displayName}</p>
-                    <Badge variant={familyData?.adminId === member.userId ? 'default' : 'secondary'} className="mt-1">
-                        {familyData?.adminId === member.userId ? 'Admin' : 'Member'}
+                    <Badge variant={familyData?.adminId === member.id ? 'default' : 'secondary'} className="mt-1">
+                        {familyData?.adminId === member.id ? 'Admin' : 'Member'}
                     </Badge>
                     <div className="mt-4 flex gap-2">
                         <Button variant="outline" size="sm">View Stories</Button>
@@ -82,14 +69,27 @@ export default function FamilyPage() {
     const familyId = userData?.familyId;
 
     const familyDocRef = useMemoFirebase(() => familyId ? doc(firestore, 'families', familyId) : null, [firestore, familyId]);
-    const { data: familyData, isLoading: familyLoading } = useDoc(familyDocRef);
+    const { data: familyData, isLoading: familyLoading } = useDoc<Family>(familyDocRef);
+
+    const memberIds = familyData?.memberIds;
+    
+    const familyMembersQuery = useMemoFirebase(
+        () =>
+            firestore && memberIds && memberIds.length > 0
+                ? query(collection(firestore, 'users'), where(documentId(), 'in', memberIds))
+                : null,
+        [firestore, memberIds]
+    );
+
+    const { data: familyMembers, isLoading: familyMembersLoading } = useCollection<MemoraUser>(familyMembersQuery);
+
 
     return (
         <div className="p-4 md:p-8">
             <Card>
                 <CardHeader className="flex flex-row items-center justify-between">
                     <div>
-                        <CardTitle className="font-headline text-2xl">{familyData?.familyName || "Family Circle"}</CardTitle>
+                         {familyLoading ? <Skeleton className="h-8 w-48" /> : <CardTitle className="font-headline text-2xl">{familyData?.familyName}</CardTitle>}
                         <CardDescription>Manage who is part of your family's Memora account.</CardDescription>
                     </div>
                     <Button>
@@ -97,7 +97,7 @@ export default function FamilyPage() {
                     </Button>
                 </CardHeader>
                 <CardContent>
-                    {familyLoading && (
+                    {(familyLoading || !familyData) ? (
                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                             {Array.from({ length: 4 }).map((_, i) => (
                                 <Card key={i} className="text-center flex flex-col items-center p-6">
@@ -107,9 +107,8 @@ export default function FamilyPage() {
                                 </Card>
                             ))}
                          </div>
-                    )}
-                    {!familyLoading && familyData && (
-                        <FamilyMembers familyData={familyData} />
+                    ) : (
+                        <FamilyMembers familyData={familyData} familyMembers={familyMembers} familyMembersLoading={familyMembersLoading} />
                     )}
                 </CardContent>
             </Card>

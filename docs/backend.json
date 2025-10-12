@@ -6,21 +6,17 @@
       "type": "object",
       "description": "Represents a family account within the Memora application.",
       "properties": {
-        "familyId": {
-          "type": "string",
-          "description": "Unique identifier for the Family entity."
-        },
         "familyName": {
           "type": "string",
           "description": "The name of the family (e.g., 'The Smiths')."
         },
         "adminId": {
           "type": "string",
-          "description": "Reference to User who is the administrator of this family. (Relationship: User 1:N Family)"
+          "description": "Reference to User who is the administrator of this family."
         },
         "memberIds": {
           "type": "array",
-          "description": "References to Users who are members of this family. (Relationship: Family 1:N User)",
+          "description": "References to Users who are members of this family.",
           "items": {
             "type": "string"
           }
@@ -31,7 +27,6 @@
         }
       },
       "required": [
-        "familyId",
         "familyName",
         "adminId",
         "memberIds",
@@ -44,10 +39,6 @@
       "type": "object",
       "description": "Represents a user of the Memora application.",
       "properties": {
-        "userId": {
-          "type": "string",
-          "description": "Unique identifier for the User entity. This corresponds to the Firebase Auth UID."
-        },
         "email": {
           "type": "string",
           "description": "The user's email address.",
@@ -60,10 +51,12 @@
         "familyId": {
           "type": "string",
           "description": "Reference to Family the user belongs to. (Relationship: Family 1:N User)"
+        },
+        "avatarId": {
+          "type": "string"
         }
       },
       "required": [
-        "userId",
         "email",
         "displayName",
         "familyId"
@@ -75,10 +68,6 @@
       "type": "object",
       "description": "Represents a family story within the Memora application.",
       "properties": {
-        "storyId": {
-          "type": "string",
-          "description": "Unique identifier for the Story entity."
-        },
         "familyId": {
           "type": "string",
           "description": "Reference to the Family to which this story belongs. (Relationship: Family 1:N Story)"
@@ -113,14 +102,12 @@
         }
       },
       "required": [
-        "storyId",
         "familyId",
         "title",
         "narrator",
         "audioUrl",
         "transcription",
         "status",
-        "associatedPhotoUrl",
         "isDonated"
       ]
     },
@@ -130,10 +117,6 @@
       "type": "object",
       "description": "Represents a physical Memora Box device.",
       "properties": {
-        "boxId": {
-          "type": "string",
-          "description": "Unique identifier for the MemoraBox entity. This is the hardware ID of the box."
-        },
         "familyId": {
           "type": "string",
           "description": "Reference to the Family to which this box is linked. (Relationship: Family 1:N MemoraBox)"
@@ -148,9 +131,7 @@
         }
       },
       "required": [
-        "boxId",
         "familyId",
-        "pairingCode",
         "status"
       ]
     },
@@ -160,10 +141,6 @@
       "type": "object",
       "description": "Represents a story donated to the Estudia Memora community.",
       "properties": {
-        "donatedStoryId": {
-          "type": "string",
-          "description": "Unique identifier for the DonatedStory entity."
-        },
         "storyId": {
           "type": "string",
           "description": "Reference to the original Story. (Relationship: Story 1:1 DonatedStory, optional)"
@@ -174,7 +151,6 @@
         }
       },
       "required": [
-        "donatedStoryId",
         "storyId",
         "anonTranscription"
       ]
@@ -195,13 +171,7 @@
           "schema": {
             "$ref": "#/backend/entities/User"
           },
-          "description": "Stores user profiles. The 'userId' corresponds to the Firebase Auth UID.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The Firebase Auth UID of the user."
-            }
-          ]
+          "description": "Stores user profiles. The document ID corresponds to the Firebase Auth UID."
         }
       },
       {
@@ -211,13 +181,7 @@
           "schema": {
             "$ref": "#/backend/entities/Family"
           },
-          "description": "Stores family account information.",
-          "params": [
-            {
-              "name": "familyId",
-              "description": "Unique identifier for the family."
-            }
-          ]
+          "description": "Stores family account information."
         }
       },
       {
@@ -227,17 +191,7 @@
           "schema": {
             "$ref": "#/backend/entities/Story"
           },
-          "description": "Stores stories associated with a family. Includes denormalized 'familyId' for authorization independence. Potentially includes denormalized 'subscriptionTier' from the parent Family.",
-          "params": [
-            {
-              "name": "familyId",
-              "description": "The ID of the family that owns the story."
-            },
-            {
-              "name": "storyId",
-              "description": "Unique identifier for the story."
-            }
-          ]
+          "description": "Stores stories associated with a family."
         }
       },
       {
@@ -247,17 +201,7 @@
           "schema": {
             "$ref": "#/backend/entities/MemoraBox"
           },
-          "description": "Stores information about Memora Box devices, nested under the family they belong to.",
-          "params": [
-            {
-              "name": "familyId",
-              "description": "The ID of the family that the box belongs to."
-            },
-            {
-              "name": "boxId",
-              "description": "Unique identifier for the Memora Box (hardware ID)."
-            }
-          ]
+          "description": "Stores information about Memora Box devices, nested under the family they belong to."
         }
       },
       {
@@ -267,17 +211,9 @@
           "schema": {
             "$ref": "#/backend/entities/DonatedStory"
           },
-          "description": "Stores anonymized stories donated to the Estudia Memora community.",
-          "params": [
-            {
-              "name": "donatedStoryId",
-              "description": "Unique identifier for the donated story."
-            }
-          ]
+          "description": "Stores anonymized stories donated to the Estudia Memora community."
         }
       }
-    ],
-    "reasoning": "This Firestore structure is designed to support the \"Memora\" application, prioritizing security, scalability, and debuggability as per the defined principles. The key strategy is Authorization Independence achieved through denormalization of authorization-related data. This eliminates the need for `get()` calls in security rules, enabling atomic operations and simplifying debugging. Structural Segregation is applied to maintain homogeneous security postures within collections.\n\nSpecifically:\n\n*   **Users and Families:** User and family data are stored in separate collections. When a user creates a family, the `familyId` is updated in the user document, establishing the relationship. The `subscriptionTier` is stored in the family document.\n*   **Stories and MemoraBoxes:** Stories and MemoraBoxes are stored within subcollections of families (`/families/{familyId}/stories/{storyId}` and `/families/{familyId}/memoraBoxes/{boxId}`). This enforces ownership based on the `familyId` and allows for efficient querying of items belonging to a specific family. The `familyId` and potentially the `subscriptionTier` are denormalized into each story document to avoid authorization `get()` calls.\n*   **DonatedStories:** Donated stories are stored in a separate collection (`/donatedStories/{donatedStoryId}`). Each document references the original story's ID. This segregation simplifies access control for public consumption.\n\nQAPs (Rules are not Filters) are supported by the segregation of data based on access needs. For example, only members of a family can list stories or devices within that family's subcollection. The `donatedStories` collection enables listing of publicly available (anonymized) stories.\n\nAuthorization Independence:\n\n*   The `stories` and `memoraBoxes` subcollections leverage path-based authorization. This provides the best security posture. If these collections were placed at the top-level, the security rules would be far more complex as the rules would have to validate whether the requesting user is a member of the family that owns the item.\n*   If other family attributes are needed for authorization (e.g., `subscriptionTier`), these should be denormalized into the documents within the subcollections."
+    ]
   }
 }
-    

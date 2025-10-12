@@ -14,12 +14,19 @@ export type Story = {
 
 export type User = {
   id: string;
-  userId: string;
   email: string;
   displayName: string;
   familyId: string;
   avatarId?: string;
 };
+
+export type Family = {
+  id: string;
+  familyName: string;
+  adminId: string;
+  memberIds: string[];
+  subscriptionTier: 'free' | 'premium';
+}
 
 export type Device = {
   id: string;

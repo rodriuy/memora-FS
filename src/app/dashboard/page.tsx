@@ -24,10 +24,11 @@ import Image from 'next/image';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { useUser, useFirestore, useCollection, useDoc, useMemoFirebase } from '@/firebase';
 import { collection, query, where, doc, documentId } from 'firebase/firestore';
-import type { Story, Device } from '@/lib/types';
-import type { User as MemoraUser } from '@/lib/types';
+import type { Story } from '@/lib/types';
+import type { User as MemoraUser, Family } from '@/lib/types';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export default function Dashboard() {
   const { user, userData, isUserLoading } = useUser();
@@ -43,7 +44,7 @@ export default function Dashboard() {
   const { data: devices, isLoading: devicesLoading } = useCollection<Device>(devicesQuery);
 
   const familyDocRef = useMemoFirebase(() => familyId ? doc(firestore, 'families', familyId) : null, [firestore, familyId]);
-  const { data: familyData } = useDoc(familyDocRef);
+  const { data: familyData, isLoading: familyLoading } = useDoc<Family>(familyDocRef);
   
   const memberIds = familyData?.memberIds;
 
@@ -67,16 +68,30 @@ export default function Dashboard() {
     }
   }, [user, isUserLoading, router]);
 
-  if (isUserLoading || !userData) {
+  const isLoading = isUserLoading || familyMembersLoading || storiesLoading || devicesLoading || familyLoading;
+
+  if (isLoading) {
       return (
-        <div className="flex justify-center items-center h-[calc(100vh-4rem)]">
-          <p>Loading your dashboard...</p>
+        <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
+          <div className="flex items-center justify-between space-y-2">
+            <Skeleton className="h-9 w-64" />
+            <Skeleton className="h-10 w-36" />
+          </div>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            <Card><CardHeader><Skeleton className="h-5 w-24" /></CardHeader><CardContent><Skeleton className="h-8 w-12" /></CardContent></Card>
+            <Card><CardHeader><Skeleton className="h-5 w-24" /></CardHeader><CardContent><Skeleton className="h-8 w-12" /></CardContent></Card>
+            <Card><CardHeader><Skeleton className="h-5 w-24" /></CardHeader><CardContent><Skeleton className="h-8 w-12" /></CardContent></Card>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
+            <Card className="lg:col-span-4"><CardHeader><Skeleton className="h-6 w-48" /></CardHeader><CardContent className="space-y-4"><Skeleton className="h-24 w-full" /><Skeleton className="h-24 w-full" /><Skeleton className="h-24 w-full" /></CardContent></Card>
+            <Card className="lg:col-span-3"><CardHeader><Skeleton className="h-6 w-48" /></CardHeader><CardContent className="space-y-4"><Skeleton className="h-16 w-full" /><Skeleton className="h-16 w-full" /></CardContent></Card>
+          </div>
         </div>
       )
   }
 
   if (!user) {
-    return null; // Or a more specific "not logged in" message
+    return null;
   }
 
   return (
@@ -101,7 +116,7 @@ export default function Dashboard() {
             <BookText className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{storiesLoading ? '...' : stories?.length || 0}</div>
+            <div className="text-2xl font-bold">{stories?.length || 0}</div>
             <p className="text-xs text-muted-foreground">
               Preserving your family's legacy
             </p>
@@ -115,7 +130,7 @@ export default function Dashboard() {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{familyMembersLoading ? '...' : familyMembers?.length || 0}</div>
+            <div className="text-2xl font-bold">{familyMembers?.length || 0}</div>
             <p className="text-xs text-muted-foreground">
               Connected and sharing memories
             </p>
@@ -129,7 +144,7 @@ export default function Dashboard() {
             <RadioTower className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{devicesLoading ? '...' : devices?.length || 0}</div>
+            <div className="text-2xl font-bold">{devices?.length || 0}</div>
             <p className="text-xs text-muted-foreground">
               Memora Boxes bringing stories to life
             </p>
@@ -146,7 +161,7 @@ export default function Dashboard() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            {storiesLoading ? <p>Loading stories...</p> : recentStories.map((story, index) => (
+            {recentStories.map((story, index) => (
               <div key={story.id}>
                 <div className="flex items-center space-x-4">
                   <div className="relative h-24 w-24 md:h-28 md:w-40 flex-shrink-0">
@@ -191,7 +206,7 @@ export default function Dashboard() {
                 )}
               </div>
             ))}
-             {!storiesLoading && recentStories.length === 0 && <p className="text-center text-muted-foreground">No stories yet. Add one!</p>}
+             {recentStories.length === 0 && <p className="text-center text-muted-foreground">No stories yet. Add one!</p>}
           </CardContent>
         </Card>
 
@@ -203,7 +218,7 @@ export default function Dashboard() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {familyMembersLoading ? <p>Loading members...</p> : familyMembers?.map((member, index) => (
+            {familyMembers?.map((member, index) => (
               <div key={member.id}>
                 <div className="flex items-center justify-between space-x-4">
                   <div className="flex items-center space-x-4">
@@ -218,7 +233,7 @@ export default function Dashboard() {
                         {member.displayName}
                       </p>
                       <p className="text-sm text-muted-foreground">
-                        {familyData?.adminId === member.userId ? 'Admin' : 'Member'}
+                        {familyData?.adminId === member.id ? 'Admin' : 'Member'}
                       </p>
                     </div>
                   </div>
@@ -237,5 +252,3 @@ export default function Dashboard() {
     </div>
   );
 }
-
-    
