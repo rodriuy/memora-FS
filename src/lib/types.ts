@@ -18,6 +18,7 @@ export type User = {
   displayName: string;
   familyId: string;
   avatarId?: string;
+  avatarUrl?: string; // Add this field to store custom uploaded/generated avatar URLs
   bio?: string;
 };
 

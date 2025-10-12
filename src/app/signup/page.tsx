@@ -76,6 +76,7 @@ export default function SignupPage() {
         displayName: user.displayName,
         familyId: finalFamilyId,
         avatarId: `user-${Math.floor(Math.random() * 4) + 1}`,
+        avatarUrl: user.photoURL || '',
         bio: '',
     };
     batch.set(userRef, userData);

@@ -54,8 +54,11 @@ function InviteMemberModal({ familyId }: { familyId: string }) {
 function FamilyMembers({ familyData, familyMembers, familyMembersLoading }: { familyData: Family | null, familyMembers: MemoraUser[] | null, familyMembersLoading: boolean }) {
     const { user: currentUser } = useUser();
     const firestore = useFirestore();
-    const userImage = (id: string) => PlaceHolderImages.find(p => p.id === id)?.imageUrl || '';
     const { toast } = useToast();
+
+    const getAvatar = (member: MemoraUser) => {
+        return member.avatarUrl || PlaceHolderImages.find(p => p.id === member.avatarId)?.imageUrl || `https://i.pravatar.cc/150?u=${member.id}`;
+    }
 
     const handleRemoveMember = (memberId: string) => {
         if (!firestore || !familyData) return;
@@ -98,7 +101,7 @@ function FamilyMembers({ familyData, familyMembers, familyMembersLoading }: { fa
             {familyMembers.map(member => (
                 <Card key={member.id} className="text-center flex flex-col items-center p-6">
                     <Avatar className="w-24 h-24 mb-4 border-4 border-secondary">
-                        <AvatarImage src={userImage(member.avatarId || 'user-1')} alt={member.displayName} />
+                        <AvatarImage src={getAvatar(member)} alt={member.displayName} />
                         <AvatarFallback>{member.displayName?.substring(0, 2)}</AvatarFallback>
                     </Avatar>
                     <p className="font-semibold text-lg">{member.displayName}</p>

@@ -69,7 +69,7 @@ export function Header() {
     return name.substring(0, 2);
   }
 
-  const avatarImage = PlaceHolderImages.find(p => p.id === userData?.avatarId)?.imageUrl || `https://i.pravatar.cc/150?u=${user?.uid}`;
+  const avatarImage = userData?.avatarUrl || PlaceHolderImages.find(p => p.id === userData?.avatarId)?.imageUrl || `https://i.pravatar.cc/150?u=${user?.uid}`;
 
 
   return (

@@ -59,7 +59,11 @@ export default function Dashboard() {
 
   const recentStories = stories ? stories.slice(0, 3) : [];
   const storyImage = (id: string) => PlaceHolderImages.find(p => p.id === id)?.imageUrl || '';
-  const userImage = (id: string) => PlaceHolderImages.find(p => p.id === id)?.imageUrl || '';
+
+  const getAvatar = (member: MemoraUser) => {
+    return member.avatarUrl || PlaceHolderImages.find(p => p.id === member.avatarId)?.imageUrl || `https://i.pravatar.cc/150?u=${member.id}`;
+  }
+
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -238,7 +242,7 @@ export default function Dashboard() {
                         <div className="flex items-center justify-between space-x-4">
                         <div className="flex items-center space-x-4">
                             <Avatar>
-                            <AvatarImage src={userImage(member.avatarId || 'user-1')} />
+                            <AvatarImage src={getAvatar(member)} />
                             <AvatarFallback>
                                 {member.displayName?.charAt(0)}
                             </AvatarFallback>
