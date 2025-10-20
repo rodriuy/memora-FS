@@ -37,21 +37,21 @@ export default function Dashboard() {
   const familyId = userData?.familyId;
 
   const storiesQuery = useMemoFirebase(() => {
-    if (!firestore || !familyId) return null;
+    if (isUserLoading || !firestore || !familyId) return null;
     return query(collection(firestore, 'families', familyId, 'stories'));
-  }, [firestore, familyId]);
+  }, [isUserLoading, firestore, familyId]);
   const { data: stories, isLoading: storiesLoading } = useCollection<Story>(storiesQuery);
 
   const devicesQuery = useMemoFirebase(() => {
-    if (!firestore || !familyId) return null;
+    if (isUserLoading || !firestore || !familyId) return null;
     return query(collection(firestore, 'families', familyId, 'memoraBoxes'));
-  }, [firestore, familyId]);
+  }, [isUserLoading, firestore, familyId]);
   const { data: devices, isLoading: devicesLoading } = useCollection<Device>(devicesQuery);
 
   const familyDocRef = useMemoFirebase(() => {
-    if (!firestore || !familyId) return null;
+    if (isUserLoading || !firestore || !familyId) return null;
     return doc(firestore, 'families', familyId);
-  }, [firestore, familyId]);
+  }, [isUserLoading, firestore, familyId]);
   const { data: familyData, isLoading: familyLoading } = useDoc<Family>(familyDocRef);
   
   const memberIds = familyData?.memberIds;

@@ -51,7 +51,12 @@ const anonymizeStoryFlow = ai.defineFlow(
     outputSchema: AnonymizeStoryOutputSchema,
   },
   async input => {
-    const {output} = await anonymizeStoryPrompt(input);
-    return output!;
+    try {
+      const {output} = await anonymizeStoryPrompt(input);
+      return output!;
+    } catch (error: any) {
+      console.error("Error in anonymizeStoryFlow:", error);
+      throw new Error(`Fallo en la anonimización: ${error.message || 'Error desconocido'}`);
+    }
   }
 );

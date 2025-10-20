@@ -15,7 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function DevicesPage() {
-    const { userData } = useUser();
+    const { userData, isUserLoading } = useUser();
     const { toast } = useToast();
     const firestore = useFirestore();
     const [pairingCode, setPairingCode] = useState('');
@@ -24,9 +24,9 @@ export default function DevicesPage() {
     const familyId = userData?.familyId;
     
     const devicesQuery = useMemoFirebase(() => {
-        if (!firestore || !familyId) return null;
+        if (isUserLoading || !firestore || !familyId) return null;
         return collection(firestore, 'families', familyId, 'memoraBoxes');
-    }, [firestore, familyId]);
+    }, [isUserLoading, firestore, familyId]);
     const { data: devices, isLoading: devicesLoading } = useCollection<Device>(devicesQuery);
 
     const handlePairDevice = async () => {

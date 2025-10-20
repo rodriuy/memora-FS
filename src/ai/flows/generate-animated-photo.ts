@@ -47,7 +47,8 @@ const generateAnimatedPhotoFlow = ai.defineFlow(
     outputSchema: GenerateAnimatedPhotoOutputSchema,
   },
   async input => {
-     let { operation } = await ai.generate({
+    try { // Envolver toda la lógica
+      let { operation } = await ai.generate({
         model: googleAI.model('veo-2.0-generate-001'),
         prompt: [
             { text: input.animationPrompt },
@@ -60,40 +61,53 @@ const generateAnimatedPhotoFlow = ai.defineFlow(
         },
     });
 
-    if (!operation) {
-        throw new Error('Expected the model to return an operation');
+      if (!operation) {
+          throw new Error('Modelo no devolvió una operación para la generación de video.');
+      }
+
+      // Esperar a que la operación termine
+      let attempts = 0;
+      const maxAttempts = 12; // Esperar máx 1 minuto (12 * 5 segundos)
+      while (!operation.done && attempts < maxAttempts) {
+          await new Promise(resolve => setTimeout(resolve, 5000)); // Esperar 5 segundos
+          operation = await ai.checkOperation(operation);
+          attempts++;
+      }
+
+       if (!operation.done) {
+          throw new Error('La operación de generación de video excedió el tiempo límite.');
+       }
+
+      if (operation.error) {
+          console.error("Error en la generación de video:", operation.error);
+          throw new Error('Fallo al generar video: ' + (operation.error.message || 'Error desconocido de IA'));
+      }
+
+      const video = operation.output?.message?.content.find(p => !!p.media);
+      if (!video || !video.media?.url) {
+          throw new Error('No se encontró el video generado en la salida de la operación.');
+      }
+
+      // Descargar el video y convertir a data URI
+      const fetch = (await import('node-fetch')).default;
+      const videoDownloadUrl = `${video.media.url}&key=${process.env.GEMINI_API_KEY}`; // Asegúrate que GEMINI_API_KEY está configurado
+
+      const videoDownloadResponse = await fetch(videoDownloadUrl);
+
+      if (!videoDownloadResponse.ok || !videoDownloadResponse.body) {
+          throw new Error(`Fallo al descargar el video generado: ${videoDownloadResponse.statusText} (URL: ${video.media.url})`); // Incluir URL base en error
+      }
+
+      const videoBuffer = await videoDownloadResponse.arrayBuffer();
+      const base64Video = Buffer.from(videoBuffer).toString('base64');
+      const videoDataUri = `data:video/mp4;base64,${base64Video}`;
+
+      return { animatedPhotoDataUri: videoDataUri };
+
+    } catch (error: any) { // Catch general
+        console.error("generateAnimatedPhotoFlow Error:", error);
+        // Lanzar un error más descriptivo que pueda ser capturado por el frontend
+        throw new Error(`Fallo en la animación de la foto: ${error.message || 'Error desconocido'}`);
     }
-
-    // Wait until the operation completes.
-    while (!operation.done) {
-        await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds
-        operation = await ai.checkOperation(operation);
-    }
-
-    if (operation.error) {
-        console.error("Video generation error:", operation.error);
-        throw new Error('Failed to generate video: ' + operation.error.message);
-    }
-
-    const video = operation.output?.message?.content.find(p => !!p.media);
-    if (!video || !video.media?.url) {
-        throw new Error('Failed to find the generated video in the operation output');
-    }
-
-    // The URL from VEO is a temporary download link. We need to fetch it and convert to a data URI.
-    const fetch = (await import('node-fetch')).default;
-    const videoDownloadResponse = await fetch(
-        `${video.media.url}&key=${process.env.GEMINI_API_KEY}`
-    );
-
-    if (!videoDownloadResponse.ok || !videoDownloadResponse.body) {
-        throw new Error(`Failed to download generated video: ${videoDownloadResponse.statusText}`);
-    }
-
-    const videoBuffer = await videoDownloadResponse.arrayBuffer();
-    const base64Video = Buffer.from(videoBuffer).toString('base64');
-    const videoDataUri = `data:video/mp4;base64,${base64Video}`;
-
-    return { animatedPhotoDataUri: videoDataUri };
   }
 );

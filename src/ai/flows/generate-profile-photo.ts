@@ -45,32 +45,36 @@ const generateProfilePhotoFlow = ai.defineFlow(
     outputSchema: GenerateProfilePhotoOutputSchema,
   },
   async ({ photoDataUri, userId }) => {
-    
-    // Generate the image using an image-to-image model
-    const { media: generatedMedia } = await ai.generate({
-      model: googleAI.model('gemini-2.5-flash-image-preview'),
-      prompt: [
-        { media: { url: photoDataUri } },
-        { text: 'Generate a professional, front-facing passport-style portrait from the provided image. The background should be neutral and solid light gray. The subject should be looking directly at the camera with a neutral expression.' },
-      ],
-      config: {
-        responseModalities: ['IMAGE'],
-      },
-    });
+    try {
+      // Generate the image using an image-to-image model
+      const { media: generatedMedia } = await ai.generate({
+        model: googleAI.model('gemini-2.5-flash-image-preview'),
+        prompt: [
+          { media: { url: photoDataUri } },
+          { text: 'Generate a professional, front-facing passport-style portrait from the provided image. The background should be neutral and solid light gray. The subject should be looking directly at the camera with a neutral expression.' },
+        ],
+        config: {
+          responseModalities: ['IMAGE'],
+        },
+      });
 
-    if (!generatedMedia?.url) {
-      throw new Error('Image generation failed to return media.');
+      if (!generatedMedia?.url) {
+        throw new Error('Image generation failed to return media.');
+      }
+
+      // Upload the generated image to Firebase Storage
+      const storage = getStorage();
+      const storagePath = `avatars/${userId}/generated-portrait-${Date.now()}.png`;
+      const storageRef = ref(storage, storagePath);
+
+      // The generated media url is a data URI, we need to upload it as such
+      const uploadResult = await uploadString(storageRef, generatedMedia.url, 'data_url');
+      const downloadURL = await getDownloadURL(uploadResult.ref);
+
+      return { generatedPhotoUrl: downloadURL };
+    } catch (error: any) {
+      console.error("Error in generateProfilePhotoFlow:", error);
+      throw new Error(`Fallo en la generación de foto de perfil: ${error.message || 'Error desconocido'}`);
     }
-
-    // Upload the generated image to Firebase Storage
-    const storage = getStorage();
-    const storagePath = `avatars/${userId}/generated-portrait-${Date.now()}.png`;
-    const storageRef = ref(storage, storagePath);
-
-    // The generated media url is a data URI, we need to upload it as such
-    const uploadResult = await uploadString(storageRef, generatedMedia.url, 'data_url');
-    const downloadURL = await getDownloadURL(uploadResult.ref);
-
-    return { generatedPhotoUrl: downloadURL };
   }
 );

@@ -1,4 +1,3 @@
-
 'use client';
 
 import Link from 'next/link';
@@ -16,7 +15,8 @@ import { Label } from '@/components/ui/label';
 import React, { Suspense } from 'react';
 import { useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { auth, db } from "@/firebase/client";
+import { auth, db, app } from "@/firebase/client"; // Import app
+import { getFunctions, httpsCallable } from "firebase/functions"; // Import functions tooling
 import { createUserWithEmailAndPassword, updateProfile, GoogleAuthProvider, signInWithPopup, type User as FirebaseUser } from 'firebase/auth';
 import {
   collection,
@@ -25,9 +25,7 @@ import {
   getDoc,
   updateDoc,
   serverTimestamp,
-  arrayUnion,
 } from "firebase/firestore";
-
 
 function SignupForm() {
   const router = useRouter();
@@ -48,46 +46,44 @@ function SignupForm() {
     const userRef = doc(db, "users", uid);
 
     try {
+      // Step 1: Ensure user document exists
       const existing = await getDoc(userRef);
       if (!existing.exists()) {
         await setDoc(userRef, {
           id: uid,
-          name: displayName || null,
+          displayName: displayName || null,
           email: email || null,
-          familyId: null,
+          familyId: null, // familyId is set by joinFamilyFlow or when creating a new family
           createdAt: serverTimestamp()
         });
       } else {
         await updateDoc(userRef, {
-          name: displayName || existing.data().name || null,
-          email: email || existing.data().email || null,
-        }).catch(() => {});
+          displayName: displayName || existing.data().displayName || null,
+        });
       }
 
       let finalFamilyId = familyId;
       if (!finalFamilyId) {
+        // Step 2a: Creating a NEW family
         const newFamilyRef = doc(collection(db, "families"));
         finalFamilyId = newFamilyRef.id;
         const finalFamilyName = familyName.trim() || `${displayName || 'Mi'}'s Familia`;
 
         await setDoc(newFamilyRef, {
           id: finalFamilyId,
-          name: finalFamilyName,
+          familyName: finalFamilyName,
           adminId: uid,
           memberIds: [uid],
+          subscriptionTier: 'free',
           createdAt: serverTimestamp()
         });
-        await updateDoc(userRef, { familyId: finalFamilyId }).catch(() => {});
+        await updateDoc(userRef, { familyId: finalFamilyId });
 
       } else {
-        const familyRef = doc(db, "families", finalFamilyId);
-        const familyDoc = await getDoc(familyRef);
-        if (familyDoc.exists()) {
-            await updateDoc(familyRef, {
-                memberIds: arrayUnion(uid)
-            }).catch(() => {});
-        }
-        await updateDoc(userRef, { familyId: finalFamilyId }).catch(() => {});
+        // Step 2b: Joining an EXISTING family via Cloud Function
+        const functions = getFunctions(app);
+        const joinFamily = httpsCallable(functions, 'joinFamily');
+        await joinFamily({ familyId: finalFamilyId });
       }
 
       return { ok: true };
@@ -117,6 +113,9 @@ function SignupForm() {
       await updateProfile(userCredential.user, { displayName });
 
       await setupUserAndFamilyIfNeeded(userCredential.user, displayName, email, familyName, familyIdFromInvite);
+
+      // Force a token refresh to ensure security rules have the latest auth state.
+      await userCredential.user.getIdToken(true);
 
       toast({
         title: "Cuenta Creada",
@@ -150,6 +149,9 @@ function SignupForm() {
 
       await setupUserAndFamilyIfNeeded(user, user.displayName || '', user.email || '', familyName, familyIdFromInvite);
       
+      // Force a token refresh to ensure security rules have the latest auth state.
+      await user.getIdToken(true);
+
       toast({
         title: "Sesión Iniciada",
         description: "¡Bienvenido/a a Memora!",
