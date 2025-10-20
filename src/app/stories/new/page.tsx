@@ -20,6 +20,7 @@ import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/
 import { collection, doc, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { transcribeAudioStory } from '@/ai/flows/transcribe-audio-story';
 import { firebaseConfig } from '@/firebase/config';
+import { FamilyDataGuard } from '@/firebase/firestore/family-data-guard';
 
 type Status = 'idle' | 'uploading' | 'transcribing' | 'complete' | 'error'; // Añadir estado 'error'
 
@@ -219,17 +220,19 @@ export default function NewStoryPage() {
 
   return (
     <div className="p-4 md:p-8">
-      <Card className="max-w-4xl mx-auto">
-        <CardHeader>
-            <CardTitle className="font-headline text-2xl">Añadir Nueva Historia</CardTitle>
-            <CardDescription>
-            Preserva una nueva memoria subiendo o grabando una historia de audio.
-            </CardDescription>
-        </CardHeader>
-        <CardContent className="p-6 min-h-[200px] flex items-center justify-center"> {/* Añadido min-h y flex para centrar */}
-            {renderContent()}
-        </CardContent>
-      </Card>
+        <FamilyDataGuard>
+            <Card className="max-w-4xl mx-auto">
+                <CardHeader>
+                    <CardTitle className="font-headline text-2xl">Añadir Nueva Historia</CardTitle>
+                    <CardDescription>
+                    Preserva una nueva memoria subiendo o grabando una historia de audio.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="p-6 min-h-[200px] flex items-center justify-center">
+                    {renderContent()}
+                </CardContent>
+            </Card>
+        </FamilyDataGuard>
     </div>
   );
 }

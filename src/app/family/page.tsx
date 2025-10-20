@@ -15,6 +15,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
+import { FamilyDataGuard } from "@/firebase/firestore/family-data-guard";
 
 function InviteMemberModal({ familyId }: { familyId: string }) {
     const { toast } = useToast();
@@ -101,10 +102,14 @@ function FamilyMembers({ familyData, familyMembers, familyMembersLoading, member
 
     return (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {familyMembers.map(member => (
+            {familyMembers.map((member, index) => (
                 <Card key={member.id} className="text-center flex flex-col items-center p-6">
-                    <Avatar className="w-24 h-24 mb-4 border-4 border-secondary">
-                        <AvatarImage src={getAvatar(member)} alt={member.displayName} />
+                    <Avatar className="w-24 h-24 mb-4 border-4 border-secondary" >
+                        <AvatarImage
+                          src={getAvatar(member)}
+                          alt={member.displayName || 'User Avatar'}
+                          priority={index < 4} // Prioritize loading for the first 4 images
+                        />
                         <AvatarFallback>{member.displayName?.substring(0, 2)}</AvatarFallback>
                     </Avatar>
                     <p className="font-semibold text-lg">{member.displayName}</p>
@@ -152,7 +157,7 @@ export default function FamilyPage() {
 
     return (
         <div className="p-4 md:p-8">
-             <Dialog>
+            <FamilyDataGuard>
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between">
                         <div>
@@ -170,7 +175,7 @@ export default function FamilyPage() {
                     </CardContent>
                 </Card>
                 {familyId && <InviteMemberModal familyId={familyId} />}
-            </Dialog>
+            </FamilyDataGuard>
         </div>
     );
 }

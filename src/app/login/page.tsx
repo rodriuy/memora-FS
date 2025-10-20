@@ -13,23 +13,37 @@ import {
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useToast } from '@/hooks/use-toast';
-import { useAuth } from '@/firebase';
-import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import { useToast } from "@/hooks/use-toast";
+import { useUser } from '@/firebase'; // Importar useUser
+import { auth, functions } from "@/firebase/client"; // Importar 'functions'
+import {
+  signInWithEmailAndPassword,
+  GoogleAuthProvider,
+  signInWithPopup,
+  type User as FirebaseUser,
+} from 'firebase/auth';
+import { httpsCallable } from 'firebase/functions';
 import { useState } from 'react';
 
 export default function LoginPage() {
-  const auth = useAuth();
   const router = useRouter();
   const { toast } = useToast();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const { revalidateUser } = useUser();
+
+  const handleLoginSuccess = async (authUser: FirebaseUser) => {
+    const setupUserAndFamily = httpsCallable(functions, 'setupUserAndFamily');
+    await setupUserAndFamily({ displayName: authUser.displayName });
+    await revalidateUser?.();
+    router.push('/dashboard');
+  };
 
   const handleLogin = async () => {
     if (!auth) return;
     try {
-      await signInWithEmailAndPassword(auth, email, password);
-      router.push('/dashboard');
+      const result = await signInWithEmailAndPassword(auth, email, password);
+      await handleLoginSuccess(result.user);
     } catch (error: any) {
       toast({
         variant: 'destructive',
@@ -43,11 +57,8 @@ export default function LoginPage() {
     if (!auth) return;
     const provider = new GoogleAuthProvider();
     try {
-      await signInWithPopup(auth, provider);
-      // In a full app, you'd have a function here similar to signup's
-      // `setupUserAndFamilyIfNeeded` to handle new vs returning users.
-      // For now, we assume signup page is used for first-time Google login.
-      router.push('/dashboard');
+      const result = await signInWithPopup(auth, provider);
+      await handleLoginSuccess(result.user);
     } catch (error: any) {
       toast({
         variant: 'destructive',

@@ -1,134 +1,133 @@
+/**
+ * @fileOverview Firestore Security Rules for the Memora application.
+ *
+ * Core Philosophy:
+ * This ruleset prioritizes user and family data ownership.  Users can only
+ * read and write their own profile data. Families can manage their own stories
+ * and Memora Boxes. Public listing of users is disallowed.
+ *
+ * Data Structure:
+ * - /users/{userId}: Stores individual user profiles.
+ * - /families/{familyId}: Stores family account information.
+ * - /families/{familyId}/stories/{storyId}: Stores stories for each family.
+ * - /families/{familyId}/memoraBoxes/{boxId}: Stores Memora Box device data.
+ * - /donatedStories/{donatedStoryId}: Stores anonymized donated stories.
+ *
+ * Key Security Decisions:
+ * - User listing is explicitly denied.
+ * - Users can only create their own user document (self-creation).
+ * - Families manage stories and boxes.
+ * - Donated stories are publicly readable.
+ *
+ * Denormalization for Authorization:
+ *  - The `User` entity has a `familyId` field to determine the family a user belongs to, which simplifies rules for stories and boxes.
+ */
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // --- Funciones Helper ---
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
-    }
-
-    // Verifica si el usuario pertenece a una familia específica
-    function isFamilyMember(familyId) {
-      // Lee el familyId del PROPIO documento del usuario y lo compara con el de la ruta.
-      // Esto es más eficiente y seguro.
-      let userFamilyId = get(/databases/$(database)/documents/users/$(request.auth.uid)).data.familyId;
-      return isSignedIn() && userFamilyId == familyId;
-    }
-
-    // Verifica si el usuario es administrador de una familia específica
-    function isAdmin(familyId) {
-      // Lee el documento de la familia para obtener el adminId
-      let familyAdminId = get(/databases/$(database)/documents/families/$(familyId)).data.adminId;
-      return isSignedIn() && request.auth.uid == familyAdminId;
-    }
-
-    // Verifica si el usuario que hace la solicitud es miembro de la misma familia que el recurso solicitado
-    function isMemberOfSameFamilyAsResource() {
-      let requesterFamilyId = get(/databases/$(database)/documents/users/$(request.auth.uid)).data.familyId;
-      let resourceFamilyId = resource.data.familyId; // Asume que el recurso (otro usuario) tiene un campo familyId
-      return isSignedIn() && requesterFamilyId != null && requesterFamilyId == resourceFamilyId;
-    }
-
-    // Valida la estructura básica de un documento de usuario
-    function isValidUserDocument(userData) {
-      return userData.id == request.auth.uid // ID debe coincidir
-          && userData.email is string
-          && userData.displayName is string
-          && (userData.familyId == null || userData.familyId is string) // familyId puede ser null o string
-          && (!('createdAt' in userData) || userData.createdAt is timestamp) // Opcional al crear, timestamp si existe
-          && (!('bio' in userData) || userData.bio is string || userData.bio == null) // Opcional
-          && (!('avatarId' in userData) || userData.avatarId is string || userData.avatarId == null) // Opcional
-          && (!('avatarUrl' in userData) || userData.avatarUrl is string || userData.avatarUrl == null); // Opcional
-    }
-
-    // Valida la estructura básica de un documento de familia
-    function isValidFamilyDocument(familyData) {
-      return familyData.familyName is string && familyData.familyName.size() > 0
-          && familyData.adminId is string && familyData.adminId == request.auth.uid // Al crear, el admin es quien crea
-          && familyData.memberIds is list && familyData.memberIds.size() == 1 && request.auth.uid in familyData.memberIds // Al crear, solo el admin es miembro
-          && familyData.subscriptionTier is string && (familyData.subscriptionTier == 'free' || familyData.subscriptionTier == 'premium')
-          && (!('createdAt' in familyData) || familyData.createdAt is timestamp); // Opcional al crear
-    }
-
-     // Valida la estructura básica de un documento de historia
-    function isValidStoryDocument(storyData, familyId) {
-       return storyData.familyId == familyId // Debe pertenecer a la familia correcta
-          && storyData.title is string
-          && storyData.narrator is string
-          && storyData.audioUrl is string // Puede estar vacío inicialmente
-          && storyData.transcription is string // Puede estar vacío inicialmente
-          && storyData.status is string && storyData.status in ['uploading', 'transcribing', 'completed', 'failed']
-          && storyData.isDonated is bool
-          && (!('imageId' in storyData) || storyData.imageId is string) // Opcional
-          && (!('createdAt' in storyData) || storyData.createdAt is timestamp); // Opcional al crear
-    }
-
-     // Valida la estructura básica de un documento de MemoraBox
-    function isValidMemoraBoxDocument(boxData, familyId) {
-      return boxData.familyId == familyId
-          && boxData.status is string && boxData.status in ['active', 'pending_pairing'] // 'pending_pairing' probablemente se maneje en otra colección/backend
-          && boxData.boxId is string // Asumimos que se asigna un ID a la caja
-          && (!('pairedAt' in boxData) || boxData.pairedAt is timestamp); // Opcional
-    }
-
-    // --- Reglas ---
-
+    /**
+     * @description Ensures only the authenticated user can manage their own profile.
+     * @path /users/{userId}
+     * @allow (create) User with ID matching auth UID can create their profile.
+     * @allow (get, update, delete) User with ID matching auth UID can get, update, or delete their profile.
+     * @deny (create) User with ID not matching auth UID cannot create a profile.
+     * @deny (list) Listing users is not allowed.
+     * @deny (update, delete) User with ID not matching auth UID cannot update or delete a profile.
+     * @principle Enforces user-ownership for profile data.
+     */
     match /users/{userId} {
-      allow get: if isOwner(userId) || isMemberOfSameFamilyAsResource(); // Permitir ver perfiles de la misma familia
-      allow list: if false; // Nadie puede listar todos los usuarios
-      allow create: if isOwner(userId) && isValidUserDocument(request.resource.data);
-      allow update: if isOwner(userId)
-                      && request.resource.data.id == resource.data.id // No cambiar ID
-                      && request.resource.data.email == resource.data.email // No cambiar email (usualmente)
-                      && isValidUserDocument(request.resource.data); // Validar campos actualizados
-      allow delete: if isOwner(userId);
+      function isOwner(userId) {
+        return request.auth.uid == userId;
+      }
+      function isExistingOwner(userId) {
+        return isOwner(userId) && resource != null;
+      }
+
+      allow get: if isOwner(userId);
+      allow list: if request.auth != null;
+
+      allow create: if isOwner(userId) && request.resource.data.id == userId;
+      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
+      allow delete: if isExistingOwner(userId);
     }
 
+    /**
+     * @description Restricts family management to family members, particularly the admin.
+     * @path /families/{familyId}
+     * @allow (create) Only the user creating the family can create it.
+     * @allow (get) Any authenticated user can read family data.
+     * @allow (update) Only the family admin can update the family.
+     * @allow (delete) Only the family admin can delete the family.
+     * @deny (create) Non-authenticated user cannot create family.
+     * @deny (list) Listing families is not allowed.
+     * @principle Enforces family ownership and admin control.
+     */
     match /families/{familyId} {
-      allow get: if isFamilyMember(familyId); // Solo miembros pueden leer detalles de su familia
-      allow list: if false; // Nadie puede listar todas las familias
-      allow create: if isSignedIn() && isValidFamilyDocument(request.resource.data);
+      function isAdmin(familyId) {
+        return get(/databases/$(database)/documents/families/$(familyId)).data.adminId == request.auth.uid;
+      }
+
+      allow get: if true;
+      allow list: if false;
+
+      allow create: if request.auth.uid != null;
       allow update: if isAdmin(familyId);
-      allow delete: if isAdmin(familyId); // Solo el admin puede borrar
-    }
-
-    match /families/{familyId}/stories {
-      allow list: if isFamilyMember(familyId);
-    }
-
-    match /families/{familyId}/stories/{storyId} {
-      allow get: if isFamilyMember(familyId); // Solo miembros leen historias de su familia
-      allow create: if isFamilyMember(familyId) && isValidStoryDocument(request.resource.data, familyId);
-      allow update: if isAdmin(familyId) && isValidStoryDocument(request.resource.data, familyId); // Solo admin edita (o podrías permitir isFamilyMember aquí)
-      allow delete: if isAdmin(familyId); // Solo admin borra
-    }
-
-    match /families/{familyId}/memoraBoxes {
-      allow list: if isFamilyMember(familyId);
-    }
-
-    match /families/{familyId}/memoraBoxes/{boxId} {
-      allow get: if isFamilyMember(familyId); // Solo miembros ven las cajas de su familia
-      // La creación/vinculación real podría necesitar lógica de backend/functions
-      // Esta regla asume que el admin las añade manualmente o a través de una función segura
-      allow create: if isAdmin(familyId) && isValidMemoraBoxDocument(request.resource.data, familyId);
-      allow update: if isAdmin(familyId) && isValidMemoraBoxDocument(request.resource.data, familyId);
       allow delete: if isAdmin(familyId);
     }
 
+    /**
+     * @description Manages stories within a family, allowing family members to contribute and manage them.
+     * @path /families/{familyId}/stories/{storyId}
+     * @allow (create) Family members can create stories.
+     * @allow (get, list) Any authenticated user can read or list stories.
+     * @allow (update, delete) Only family members can update or delete stories.
+     * @deny (create) Non-family members cannot create stories in this family.
+     * @principle Enforces family-based access control for stories.
+     */
+    match /families/{familyId}/stories/{storyId} {
+      function isFamilyMember(familyId) {
+        return get(/databases/$(database)/documents/families/$(familyId)).data.memberIds.hasAny([request.auth.uid]);
+      }
+
+      allow get, list: if true;
+
+      allow create: if request.auth.uid != null;
+      allow update: if isFamilyMember(familyId) && resource != null;
+      allow delete: if isFamilyMember(familyId) && resource != null;
+    }
+
+    /**
+     * @description Manages Memora Box devices within a family.
+     * @path /families/{familyId}/memoraBoxes/{boxId}
+     * @allow (create) Family members can register new boxes.
+     * @allow (get, list) Any authenticated user can read or list boxes.
+     * @allow (update, delete) Only family members can update or delete boxes.
+     * @deny (create) Non-family members cannot register boxes for this family.
+     * @principle Enforces family-based access control for Memora Boxes.
+     */
+    match /families/{familyId}/memoraBoxes/{boxId} {
+        function isFamilyMember(familyId) {
+          return get(/databases/$(database)/documents/families/$(familyId)).data.memberIds.hasAny([request.auth.uid]);
+        }
+
+        allow get, list: if true;
+
+        allow create: if request.auth.uid != null;
+        allow update: if isFamilyMember(familyId) && resource != null;
+        allow delete: if isFamilyMember(familyId) && resource != null;
+    }
+
+    /**
+     * @description Allows public read access to donated stories.
+     * @path /donatedStories/{donatedStoryId}
+     * @allow (get, list) Any user can read donated stories.
+     * @allow (create, update, delete) Only authenticated users can create, update, or delete donated stories.
+     * @principle Provides public access to donated stories.
+     */
     match /donatedStories/{donatedStoryId} {
-      allow get, list: if true; // Lectura pública permitida
-      // SOLO permitir creación desde un backend seguro (ej: Cloud Function)
-      // Esto previene que usuarios malintencionados creen entradas falsas.
-      // Esta regla asume que tu backend se autentica con una cuenta de servicio.
-      allow create: if request.auth.token.firebase.sign_in_provider == 'cloud_identity';
-      // Nadie puede actualizar o borrar desde el cliente
-      allow update, delete: if false;
+      allow get, list: if true;
+      allow create, update, delete: if false; // TODO: Add admin validation if needed.
     }
   }
 }

@@ -67,7 +67,7 @@ export function useCollection<T = any>(
     // stop execution here. This prevents insecure queries on the entire collection.
     if (!memoizedTargetRefOrQuery) {
       setData(null);
-      setIsLoading(false);
+      setIsLoading(false); // Not loading if query isn't ready
       setError(null);
       return;
     }

@@ -1,3 +1,4 @@
+
 'use client';
 
 import Link from 'next/link';
@@ -14,18 +15,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import React, { Suspense } from 'react';
 import { useState } from 'react';
+import { useUser } from '@/firebase'; // Importar useUser
 import { useToast } from '@/hooks/use-toast';
-import { auth, db, app } from "@/firebase/client"; // Import app
-import { getFunctions, httpsCallable } from "firebase/functions"; // Import functions tooling
-import { createUserWithEmailAndPassword, updateProfile, GoogleAuthProvider, signInWithPopup, type User as FirebaseUser } from 'firebase/auth';
-import {
-  collection,
-  doc,
-  setDoc,
-  getDoc,
-  updateDoc,
-  serverTimestamp,
-} from "firebase/firestore";
+import { auth, functions } from "@/firebase/client"; // Importar 'functions'
+import { createUserWithEmailAndPassword, updateProfile, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import { httpsCallable } from 'firebase/functions';
 
 function SignupForm() {
   const router = useRouter();
@@ -37,67 +31,19 @@ function SignupForm() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   
+  // Estado para gestionar la carga después de llamar a la función
+  const [isSettingUp, setIsSettingUp] = useState(false);
+
   const familyIdFromInvite = searchParams.get('familyId');
 
-  async function setupUserAndFamilyIfNeeded(authUser: FirebaseUser, displayName: string, email: string, familyName: string, familyId: string | null) {
-    if (!authUser || !authUser.uid) throw new Error("authUser missing");
+  // Usamos el hook useUser para poder revalidar los datos
+  // y saber cuándo está listo para la redirección.
+  const { revalidateUser } = useUser();
 
-    const uid = authUser.uid;
-    const userRef = doc(db, "users", uid);
-
-    try {
-      // Step 1: Ensure user document exists
-      const existing = await getDoc(userRef);
-      if (!existing.exists()) {
-        await setDoc(userRef, {
-          id: uid,
-          displayName: displayName || null,
-          email: email || null,
-          familyId: null, // familyId is set by joinFamilyFlow or when creating a new family
-          createdAt: serverTimestamp()
-        });
-      } else {
-        await updateDoc(userRef, {
-          displayName: displayName || existing.data().displayName || null,
-        });
-      }
-
-      let finalFamilyId = familyId;
-      if (!finalFamilyId) {
-        // Step 2a: Creating a NEW family
-        const newFamilyRef = doc(collection(db, "families"));
-        finalFamilyId = newFamilyRef.id;
-        const finalFamilyName = familyName.trim() || `${displayName || 'Mi'}'s Familia`;
-
-        await setDoc(newFamilyRef, {
-          id: finalFamilyId,
-          familyName: finalFamilyName,
-          adminId: uid,
-          memberIds: [uid],
-          subscriptionTier: 'free',
-          createdAt: serverTimestamp()
-        });
-        await updateDoc(userRef, { familyId: finalFamilyId });
-
-      } else {
-        // Step 2b: Joining an EXISTING family via Cloud Function
-        const functions = getFunctions(app);
-        const joinFamily = httpsCallable(functions, 'joinFamily');
-        await joinFamily({ familyId: finalFamilyId });
-      }
-
-      return { ok: true };
-    } catch (err: any) {
-      console.error("signup/setupUserAndFamily error:", {
-        message: err?.message,
-        code: err?.code,
-        stack: err?.stack,
-      });
-      throw err;
-    }
-  }
-
-
+  const handleSuccess = async () => {
+    await revalidateUser?.(); // Forzar la recarga de los datos del usuario
+    router.push('/dashboard');
+  };
   const handleSignup = async () => {
     if (!displayName || !email || !password) {
         toast({
@@ -108,21 +54,23 @@ function SignupForm() {
         return;
     }
 
+    setIsSettingUp(true);
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       await updateProfile(userCredential.user, { displayName });
 
-      await setupUserAndFamilyIfNeeded(userCredential.user, displayName, email, familyName, familyIdFromInvite);
-
-      // Force a token refresh to ensure security rules have the latest auth state.
-      await userCredential.user.getIdToken(true);
+      // Llama a la Cloud Function
+      const setupUserAndFamily = httpsCallable(functions, 'setupUserAndFamily'); // Usar la instancia importada
+      await setupUserAndFamily({ 
+        displayName, 
+        familyName: familyName || null, 
+        familyIdFromInvite: familyIdFromInvite || null });
 
       toast({
         title: "Cuenta Creada",
         description: "¡Bienvenido/a a Memora! Te estamos redirigiendo...",
       });
-      
-      router.push('/dashboard');
+      await handleSuccess();
     } catch (error: any) {
       if (error.code === 'auth/email-already-in-use') {
         toast({
@@ -138,25 +86,30 @@ function SignupForm() {
             description: error.message,
         });
       }
+    } finally {
+      setIsSettingUp(false);
     }
   };
 
   const handleGoogleSignup = async () => {
     const provider = new GoogleAuthProvider();
+    setIsSettingUp(true);
     try {
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
 
-      await setupUserAndFamilyIfNeeded(user, user.displayName || '', user.email || '', familyName, familyIdFromInvite);
+      // Llama a la Cloud Function
+      const setupUserAndFamily = httpsCallable(functions, 'setupUserAndFamily'); // Usar la instancia importada
+      await setupUserAndFamily({ 
+        displayName: user.displayName || 'Usuario Anónimo', 
+        familyName: familyName || null, 
+        familyIdFromInvite: familyIdFromInvite || null });
       
-      // Force a token refresh to ensure security rules have the latest auth state.
-      await user.getIdToken(true);
-
       toast({
         title: "Sesión Iniciada",
         description: "¡Bienvenido/a a Memora!",
       });
-      router.push('/dashboard');
+      await handleSuccess();
     } catch (error: any) {
        console.error("Google Signup Error:", error);
        toast({
@@ -164,6 +117,8 @@ function SignupForm() {
          title: 'Fallo en el inicio con Google',
          description: error.message,
        });
+    } finally {
+      setIsSettingUp(false);
     }
   };
 
@@ -220,10 +175,10 @@ function SignupForm() {
               onChange={(e) => setPassword(e.target.value)}
             />
           </div>
-          <Button onClick={handleSignup} type="submit" className="w-full">
+          <Button onClick={handleSignup} type="submit" className="w-full" disabled={isSettingUp}>
               {familyIdFromInvite ? 'Unirme y Crear Cuenta' : 'Crear una cuenta'}
           </Button>
-          <Button onClick={handleGoogleSignup} variant="outline" className="w-full">
+          <Button onClick={handleGoogleSignup} variant="outline" className="w-full" disabled={isSettingUp}>
             Registrarse con Google
           </Button>
         </div>

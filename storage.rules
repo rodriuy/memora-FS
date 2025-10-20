@@ -1,28 +1,12 @@
 rules_version = '2';
 
+// Craft rules based on data in your Firestore database
+// allow write: if firestore.get(
+//    /databases/(default)/documents/users/$(request.auth.uid)).data.isAdmin;
 service firebase.storage {
   match /b/{bucket}/o {
-
-    // Helper: Verifica si el usuario está autenticado y tiene un Custom Claim 'familyId'
-    function hasFamilyClaim(familyId) {
-      return request.auth != null && request.auth.token.familyId == familyId;
+    match /{allPaths=**} {
+      allow read, write: if false;
     }
-
-    // Avatares: Solo el dueño puede leer/escribir en su carpeta
-    match /avatars/{userId}/{allPaths=**} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-    }
-
-    // Audio: Solo miembros de la familia (verificados por Custom Claim) pueden leer/escribir
-    match /audio/{familyId}/{storyId}/{fileName} {
-      allow read, write: if hasFamilyClaim(familyId);
-      // Alternativa si no usas Custom Claims (menos seguro, depende de que el cliente conozca el familyId):
-      // allow read, write: if request.auth != null; // ¡Menos seguro!
-    }
-
-     // Podrías añadir reglas para fotos generadas/animadas si las guardas en Storage
-    // match /generated/{familyId}/{userId}/{fileName} {
-    //   allow read, write: if hasFamilyClaim(familyId); // Ejemplo
-    // }
   }
 }
