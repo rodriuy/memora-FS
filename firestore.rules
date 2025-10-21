@@ -17,7 +17,7 @@
  * - User listing is explicitly denied.
  * - Users can only create their own user document (self-creation).
  * - Families manage stories and boxes.
- * - Donated stories are publicly readable.
+ * - Donated stories are publicly readable and written via Admin SDK.
  *
  * Denormalization for Authorization:
  *  - The `User` entity has a `familyId` field to determine the family a user belongs to, which simplifies rules for stories and boxes.
@@ -31,35 +31,38 @@ service cloud.firestore {
      * @path /users/{userId}
      * @allow (create) User with ID matching auth UID can create their profile.
      * @allow (get, update, delete) User with ID matching auth UID can get, update, or delete their profile.
-     * @deny (create) User with ID not matching auth UID cannot create a profile.
      * @deny (list) Listing users is not allowed.
-     * @deny (update, delete) User with ID not matching auth UID cannot update or delete a profile.
+     * @deny (update) User cannot change their own familyId.
      * @principle Enforces user-ownership for profile data.
      */
     match /users/{userId} {
       function isOwner(userId) {
         return request.auth.uid == userId;
       }
-      function isExistingOwner(userId) {
-        return isOwner(userId) && resource != null;
-      }
 
       allow get: if isOwner(userId);
-      allow list: if request.auth != null;
+      allow list: if false; // Prevent user enumeration
 
       allow create: if isOwner(userId) && request.resource.data.id == userId;
-      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
-      allow delete: if isExistingOwner(userId);
+      // User cannot change their familyId, and the doc ID must remain the same.
+      allow update: if isOwner(userId)
+                    && request.resource.data.id == resource.data.id
+                    && request.resource.data.familyId == resource.data.familyId;
+      allow delete: if isOwner(userId);
+    }
+
+    // Helper function to check for family membership.
+    function isFamilyMember(familyId) {
+      return get(/databases/$(database)/documents/families/$(familyId)).data.memberIds.hasAny([request.auth.uid]);
     }
 
     /**
      * @description Restricts family management to family members, particularly the admin.
      * @path /families/{familyId}
-     * @allow (create) Only the user creating the family can create it.
-     * @allow (get) Any authenticated user can read family data.
+     * @allow (create) The creating user must be the admin and a member.
+     * @allow (get) Only family members can read family data.
      * @allow (update) Only the family admin can update the family.
      * @allow (delete) Only the family admin can delete the family.
-     * @deny (create) Non-authenticated user cannot create family.
      * @deny (list) Listing families is not allowed.
      * @principle Enforces family ownership and admin control.
      */
@@ -68,10 +71,12 @@ service cloud.firestore {
         return get(/databases/$(database)/documents/families/$(familyId)).data.adminId == request.auth.uid;
       }
 
-      allow get: if true;
+      allow get: if isFamilyMember(familyId);
       allow list: if false;
 
-      allow create: if request.auth.uid != null;
+      // The user creating the family must be listed as the admin and be in the initial member list.
+      allow create: if request.resource.data.adminId == request.auth.uid
+                    && request.resource.data.memberIds.hasAny([request.auth.uid]);
       allow update: if isAdmin(familyId);
       allow delete: if isAdmin(familyId);
     }
@@ -79,55 +84,38 @@ service cloud.firestore {
     /**
      * @description Manages stories within a family, allowing family members to contribute and manage them.
      * @path /families/{familyId}/stories/{storyId}
-     * @allow (create) Family members can create stories.
-     * @allow (get, list) Any authenticated user can read or list stories.
-     * @allow (update, delete) Only family members can update or delete stories.
-     * @deny (create) Non-family members cannot create stories in this family.
+     * @allow (create, update, delete) Family members can create, update, and delete stories.
+     * @allow (get, list) Only family members can read or list stories.
      * @principle Enforces family-based access control for stories.
      */
     match /families/{familyId}/stories/{storyId} {
-      function isFamilyMember(familyId) {
-        return get(/databases/$(database)/documents/families/$(familyId)).data.memberIds.hasAny([request.auth.uid]);
-      }
-
-      allow get, list: if true;
-
-      allow create: if request.auth.uid != null;
-      allow update: if isFamilyMember(familyId) && resource != null;
-      allow delete: if isFamilyMember(familyId) && resource != null;
+      allow get, list: if isFamilyMember(familyId);
+      allow create, update, delete: if isFamilyMember(familyId);
     }
 
     /**
      * @description Manages Memora Box devices within a family.
      * @path /families/{familyId}/memoraBoxes/{boxId}
-     * @allow (create) Family members can register new boxes.
-     * @allow (get, list) Any authenticated user can read or list boxes.
-     * @allow (update, delete) Only family members can update or delete boxes.
-     * @deny (create) Non-family members cannot register boxes for this family.
+     * @allow (create, update, delete) Family members can manage boxes.
+     * @allow (get, list) Only family members can read or list boxes.
      * @principle Enforces family-based access control for Memora Boxes.
      */
     match /families/{familyId}/memoraBoxes/{boxId} {
-        function isFamilyMember(familyId) {
-          return get(/databases/$(database)/documents/families/$(familyId)).data.memberIds.hasAny([request.auth.uid]);
-        }
-
-        allow get, list: if true;
-
-        allow create: if request.auth.uid != null;
-        allow update: if isFamilyMember(familyId) && resource != null;
-        allow delete: if isFamilyMember(familyId) && resource != null;
+        allow get, list: if isFamilyMember(familyId);
+        allow create, update, delete: if isFamilyMember(familyId);
     }
 
     /**
      * @description Allows public read access to donated stories.
      * @path /donatedStories/{donatedStoryId}
      * @allow (get, list) Any user can read donated stories.
-     * @allow (create, update, delete) Only authenticated users can create, update, or delete donated stories.
-     * @principle Provides public access to donated stories.
+     * @deny (create, update, delete) All client-side writes are forbidden.
+     * @principle Provides public access to donated stories. Writes must be handled by a backend process with Admin privileges.
      */
     match /donatedStories/{donatedStoryId} {
       allow get, list: if true;
-      allow create, update, delete: if false; // TODO: Add admin validation if needed.
+      // Writes are handled by backend functions with Admin SDK, not by clients.
+      allow write: if false;
     }
   }
 }

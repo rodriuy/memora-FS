@@ -7,8 +7,8 @@ import { Button } from "@/components/ui/button";
 import { PlaceHolderImages } from "@/lib/placeholder-images";
 import { Badge } from "@/components/ui/badge";
 import { PlusCircle, UserX, Trash2, Copy } from "lucide-react";
-import { useUser, useFirestore, useDoc, useMemoFirebase, useCollection, updateDocumentNonBlocking } from '@/firebase';
-import { doc, collection, query, where, documentId, arrayRemove } from 'firebase/firestore';
+import { useUser, useFirestore, useDoc, useMemoFirebase, useCollection } from '@/firebase';
+import { doc, collection, query, where, documentId, arrayRemove, updateDoc } from 'firebase/firestore';
 import type { User as MemoraUser, Family } from '@/lib/types';
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -61,13 +61,18 @@ function FamilyMembers({ familyData, familyMembers, familyMembersLoading, member
         return member.avatarUrl || PlaceHolderImages.find(p => p.id === member.avatarId)?.imageUrl || `https://i.pravatar.cc/150?u=${member.id}`;
     }
 
-    const handleRemoveMember = (memberId: string) => {
+    const handleRemoveMember = async (memberId: string) => {
         if (!firestore || !familyData) return;
-        const familyDocRef = doc(firestore, 'families', familyData.id);
-        updateDocumentNonBlocking(familyDocRef, {
-            memberIds: arrayRemove(memberId)
-        });
-        toast({ title: "Miembro eliminado", description: "El usuario ha sido eliminado de la familia."});
+        try {
+            const familyDocRef = doc(firestore, 'families', familyData.id);
+            await updateDoc(familyDocRef, {
+                memberIds: arrayRemove(memberId)
+            });
+            toast({ title: "Miembro eliminado", description: "El usuario ha sido eliminado de la familia."});
+        } catch (error) {
+            console.error("Error removing member:", error);
+            toast({ variant: 'destructive', title: "Error", description: "No se pudo eliminar al miembro de la familia."});
+        }
         // Note: In a full app, you would also need to handle re-assigning the user to a new family or deleting them.
     };
     

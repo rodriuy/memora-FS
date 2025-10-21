@@ -14,10 +14,10 @@ import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { Upload, Mic, FileAudio, BrainCircuit, AlertCircle } from 'lucide-react'; // Importar AlertCircle
 import { useToast } from '@/hooks/use-toast';
-import { useUser, useFirestore, addDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
+import { useUser, useFirestore } from '@/firebase';
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 // Asegúrate de importar deleteDoc
-import { collection, doc, serverTimestamp, deleteDoc } from 'firebase/firestore';
+import { collection, doc, serverTimestamp, deleteDoc, addDoc, updateDoc } from 'firebase/firestore';
 import { transcribeAudioStory } from '@/ai/flows/transcribe-audio-story';
 import { firebaseConfig } from '@/firebase/config';
 import { FamilyDataGuard } from '@/firebase/firestore/family-data-guard';

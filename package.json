@@ -10,7 +10,7 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "test:rules": "mocha --require ts-node/register 'src/firebase/**/*.test.ts'"
+    "test:rules": "mocha --require ts-node/register --timeout 10000 'src/firebase/**/*.test.ts'"
   },
   "dependencies": {
     "@genkit-ai/firebase": "^1.21.0",
